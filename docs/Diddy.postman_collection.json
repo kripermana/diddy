@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Diddy 2.1.0 API",
+    "name": "Diddy 2.2.0 API",
     "description": "REST API Diddy: IPAM, DNS, DHCP, resolver, deploy.\n\nIsi variabel collection `baseUrl`, `username`, `password`, lalu jalankan folder 0 sampai 9 dengan Collection Runner. Objek uji dibuat di network 198.18.X.0/24 dan zona apitest-X.invalid, lalu dihapus lagi di folder 9.\n\n(c) 2026 kripermana, MIT License.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -1675,6 +1675,87 @@
               }
             }
           }
+        },
+        {
+          "name": "Status cache DNS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /dns-cache -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-cache?range=24h",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-cache"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "24h"
+                }
+              ]
+            },
+            "description": "Statistik cache BIND, hit ratio historis, dan pengaturan cache. Flush ada di folder Z."
+          }
+        },
+        {
+          "name": "Setting cache salah ditolak",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"PUT /dns-cache/settings -> 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-cache/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-cache",
+                "settings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"max_cache_size\": \"1K\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ],
       "description": ""
@@ -2459,6 +2540,182 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"recursion\": true,\n  \"auto_allow_ipam\": true,\n  \"upstream_mode\": \"plain\",\n  \"forwarders\": \"10.1.1.53\",\n  \"forward_policy\": \"first\",\n  \"dnssec_validation\": \"auto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Contoh ubah setting cache DNS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"PUT /dns-cache/settings -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-cache/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-cache",
+                "settings"
+              ]
+            },
+            "description": "Berlaku setelah deploy. Kosongkan nilai (\"\" / null) untuk kembali ke default BIND.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"max_cache_size\": \"512M\",\n  \"max_cache_ttl\": 86400,\n  \"max_ncache_ttl\": 300\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Lihat isi cache untuk satu nama",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /dns-cache/lookup -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-cache/lookup?name=example.com&type=A",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-cache",
+                "lookup"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "example.com"
+                },
+                {
+                  "key": "type",
+                  "value": "A"
+                }
+              ]
+            },
+            "description": "dig +norecurse ke BIND lokal; tidak memicu resolusi baru. Butuh paket bind9-dnsutils."
+          }
+        },
+        {
+          "name": "Flush satu nama dari cache DNS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"POST /dns-cache/flush -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-cache/flush",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-cache",
+                "flush"
+              ]
+            },
+            "description": "rndc flushname. \"tree\": true = rndc flushtree (nama beserta semua turunannya).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"example.com\",\n  \"tree\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Flush seluruh cache DNS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"POST /dns-cache/flush -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-cache/flush",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-cache",
+                "flush"
+              ]
+            },
+            "description": "PERHATIAN: rndc flush. Client mendapat jawaban lebih lambat sampai cache terisi lagi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"

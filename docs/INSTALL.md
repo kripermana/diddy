@@ -1,6 +1,6 @@
 # Diddy: Prasyarat, Instalasi, dan Troubleshooting
 
-Dokumen ini untuk Diddy 2.1.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
+Dokumen ini untuk Diddy 2.2.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
 
 ---
 
@@ -463,6 +463,31 @@ Ada preset Cloudflare, Quad9, Google, dan AdGuard. Port default 853 untuk DoT da
 | dnsdist bentrok di port 53 | Config bawaan paket memang listen di port 53. Installer mematikan servicenya, dan config dari Diddy selalu listen di `127.0.0.1:5353` |
 
 Ingat: enkripsi ini hanya melindungi satu hop, yaitu dari server ini ke upstream. Kalau kebijakan perusahaan melarang DNS keluar ke pihak ketiga, pakai mode plain dengan forwarder ke resolver internal.
+
+**Cache DNS.** Saat recursion menyala, BIND menyimpan jawaban dari upstream di cache. Halaman **DNS zones -> DNS cache** menampilkan hit ratio, isi cache, dan memori yang terpakai. Dari halaman itu kamu juga bisa melihat isi cache untuk satu nama, menghapus cache, dan membatasi ukuran serta TTL cache.
+
+- **Statistik** diambil dari statistics-channel BIND (`bind_stats_url`), sama seperti dashboard DNS.
+- **Lookup** memakai `dig +norecurse` ke `bind_local_addr` (default `127.0.0.1`), jadi paket `bind9-dnsutils` harus terpasang.
+- **Flush** memakai `rndc` dan langsung berlaku tanpa deploy.
+- **Pengaturan ukuran dan TTL** baru berlaku setelah Deploy.
+
+Dari CLI:
+
+```bash
+sudo diddy cache-stats
+sudo diddy cache-lookup www.example.com A
+sudo diddy cache-flush www.example.com           # satu nama
+sudo diddy cache-flush example.com --tree        # nama beserta semua turunannya
+sudo diddy cache-flush                           # seluruh cache
+```
+
+| Gejala | Solusi |
+|---|---|
+| Domain sudah dipindah ke IP baru, client masih dapat IP lama | Flush nama itu (*Flush a name*), atau pakai `--tree` untuk seluruh domain |
+| Hit ratio rendah dan *Evicted (cache full)* terus naik | Cache terlalu kecil. Naikkan *Max cache size* (mis. `1G` atau `50%`), lalu Deploy |
+| Domain yang baru dibuat masih NXDOMAIN | Jawaban negatif masih tersimpan di cache. Flush nama itu, atau turunkan *Max negative cache TTL* |
+| Statistik cache tidak tersedia | Statistics-channel BIND belum aktif (Deploy sekali), atau recursion mati |
+| Lookup gagal `dig tidak ditemukan` | `sudo apt install bind9-dnsutils` |
 
 ### 3.7 Deploy sukses, tapi DNS tidak menjawab
 

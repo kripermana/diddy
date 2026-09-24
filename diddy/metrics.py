@@ -17,6 +17,7 @@ from .config import C
 from .core.log import log
 from .db.connection import q, x
 from .dhcp.kea import kea_command
+from .dns.cache import cache_counters
 from .dhcp.leases import read_leases
 from .ipam.networks import all_nets, smallest_net
 
@@ -42,10 +43,13 @@ def dns_sample():
     total = (d.get("opcodes") or {}).get("QUERY")
     if total is None:
         total = ns.get("Requestv4", 0) + ns.get("Requestv6", 0)
+    cc = cache_counters(d)
     return {"boot": d.get("boot-time"), "total": int(total),
             "rcodes": {k: int(v) for k, v in (d.get("rcodes") or {}).items() if v},
             "qtypes": {k: int(v) for k, v in (d.get("qtypes") or {}).items() if v},
-            "ns": {k: int(ns.get(k, 0)) for k in DNS_NS_KEYS}}
+            "ns": {k: int(ns.get(k, 0)) for k in DNS_NS_KEYS},
+            "cache": {"hits": cc["stats"].get("QueryHits", 0), "misses": cc["stats"].get("QueryMisses", 0)}
+            if cc else None}
 
 
 def dhcp_sample():
@@ -191,6 +195,24 @@ def dns_report(range_name):
         "zones": zone_record_counts(),
         "source": source_status("dns"),
     }
+
+
+def cache_report(range_name):
+    """Hit ratio cache BIND per bucket, dari selisih QueryHits/QueryMisses di sampel DNS."""
+    now = int(time.time())
+    span, step = _range(range_name)
+    samples = [s for s in load("dns", now - span) if s.get("cache")]
+    hits, misses = [], []
+    for p, c in zip(samples, samples[1:]):
+        reset = c.get("boot") != p.get("boot")
+        hits.append((c["ts"], _delta(c["cache"]["hits"], p["cache"]["hits"], reset)))
+        misses.append((c["ts"], _delta(c["cache"]["misses"], p["cache"]["misses"], reset)))
+    series = [{"t": b, "v": round(h * 100 / (h + m), 1) if h + m else None}
+              for (b, h), (_, m) in zip(bucketize(hits, now - span, now, step),
+                                        bucketize(misses, now - span, now, step))]
+    th, tm = sum(v for _, v in hits), sum(v for _, v in misses)
+    return {"range": range_name, "step": step, "series": series, "hits": th, "misses": tm,
+            "hit_ratio": round(th * 100 / (th + tm), 1) if th + tm else None}
 
 
 def zone_record_counts():

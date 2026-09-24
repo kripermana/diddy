@@ -489,7 +489,7 @@ async function vDns() {
     { k: 'dynamic_count', label: 'From DHCP', fmt: v => v ? `<span class="tag warn">${v}</span>` : '<span class="muted">0</span>' },
     { k: 'primary_ns', label: 'Primary NS' }, { k: 'serial', label: 'Serial', cls: 'mono' }, { k: 'comment', label: 'Comment' }];
   const acts = r => adm(`<button class="lnk" data-act="edit" data-id="${r.id}">Edit</button><button class="lnk danger" data-act="del" data-id="${r.id}">Delete</button>`);
-  main(head('DNS zones', 'Authoritative zones served by BIND on this server', adm(`<button class="btn primary" data-act="add">Add zone</button>`) + `<a class="btn" href="#/resolver">Resolver &amp; forwarders</a><a class="btn" href="/api/v1/export/records.csv">Export records</a>`) +
+  main(head('DNS zones', 'Authoritative zones served by BIND on this server', adm(`<button class="btn primary" data-act="add">Add zone</button>`) + `<a class="btn" href="#/resolver">Resolver &amp; forwarders</a><a class="btn" href="#/dns-cache">DNS cache</a><a class="btn" href="/api/v1/export/records.csv">Export records</a>`) +
     `<div class="panel flush"><div style="padding:16px 16px 0"><h2>Forward zones</h2></div>${table(cols, zones.filter(z => !z.reverse), { empty: 'No forward zone yet. Add one, for example corp.local.', actions: acts })}</div>
      <div class="panel flush"><div style="padding:16px 16px 0"><h2>Reverse zones</h2></div>${table(cols, zones.filter(z => z.reverse), { empty: 'No reverse zone yet. They are created when you add a network with the reverse zone option.', actions: acts })}</div>`);
   on('add', () => zoneForm());
@@ -554,7 +554,7 @@ async function vZone(id) {
 async function vResolver() {
   const [cfg, fws] = await Promise.all([api('GET', '/dns-settings'), api('GET', '/forwarders')]);
   main(head('Resolver and forwarders', 'How BIND answers for names it is not authoritative for',
-    adm(`<button class="btn primary" data-act="edit-cfg">Edit resolver</button><button class="btn" data-act="add-fw">Add conditional forwarder</button>`),
+    adm(`<button class="btn primary" data-act="edit-cfg">Edit resolver</button><button class="btn" data-act="add-fw">Add conditional forwarder</button>`) + `<a class="btn" href="#/dns-cache">DNS cache</a>`,
     `<a href="#/dns">DNS zones</a> / Resolver`) +
     `<div class="panel"><h2>Resolver</h2><div class="facts">
       <div><span>Recursion</span><b>${cfg.recursion ? 'On' : 'Off (authoritative only)'}</b></div>
@@ -599,6 +599,70 @@ async function vResolver() {
   on('add-fw', () => fwForm());
   on('edit-fw', d => fwForm(fws.find(f => f.id == d.id)));
   on('del-fw', async d => { const f = fws.find(x => x.id == d.id); if (confirm(`Delete conditional forwarder for ${f.domain}?`)) { await api('DELETE', '/forwarders/' + f.id); toast('Deleted'); route(); } });
+}
+
+/* ---------------- DNS cache: statistik, lookup, flush, dan pengaturan cache BIND */
+const CACHE_VIEW = { range: '24h' };
+const RANGE_SECS = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800 };
+const bytes = v => v == null ? '-' : v >= 1073741824 ? (v / 1073741824).toFixed(1) + ' GB' : v >= 1048576 ? (v / 1048576).toFixed(1) + ' MB' : Math.round(v / 1024) + ' KB';
+const dur = t => t == null ? 'BIND default' : `${F(t)} s` + (t >= 60 ? ` (${t % 86400 === 0 ? t / 86400 + 'd' : t % 3600 === 0 ? t / 3600 + 'h' : t % 60 === 0 ? t / 60 + 'm' : Math.round(t / 60) + 'm'})` : '');
+async function vDnsCache() {
+  const c = await api('GET', '/dns-cache?range=' + CACHE_VIEW.range);
+  const s = c.stats, st = c.settings, hist = c.history;
+  const hasHist = hist.series.some(p => p.v !== null);
+  main(head('DNS cache', 'Answers BIND remembers from recursive lookups',
+    adm(`<button class="btn" data-act="edit-cache">Cache settings</button><button class="btn" data-act="flush-name">Flush a name</button><button class="btn danger" data-act="flush-all">Flush entire cache</button>`),
+    `<a href="#/dns">DNS zones</a> / <a href="#/resolver">Resolver</a> / Cache`) +
+    (c.recursion ? '' : '<div class="conflict">Recursion is off, so BIND does not cache answers for clients. Turn it on in <a href="#/resolver">Resolver and forwarders</a>.</div>') +
+    (c.dry_run ? '<p class="muted">dry_run is on: flush requests are logged but not sent to BIND.</p>' : '') +
+    `<div class="panel"><h2>Cache now</h2>${s.available ? kpis([
+      { label: 'Hit ratio', value: s.hit_ratio == null ? '-' : s.hit_ratio + '%', sub: `${F(s.query_hits)} hits, ${F(s.query_misses)} misses since BIND started` },
+      { label: 'Cached RRsets', value: F(s.rrsets.total), sub: `${F(s.rrsets.negative)} negative, ${F(s.rrsets.stale)} stale` },
+      { label: 'Cache nodes', value: s.nodes == null ? '-' : F(s.nodes) },
+      { label: 'Memory in use', value: bytes(s.memory_in_use), sub: `limit: ${esc(st.max_cache_size || 'BIND default')}` },
+      { label: 'Evicted (cache full)', value: s.evicted_lru == null ? '-' : F(s.evicted_lru), sub: 'removed early to stay under the limit' },
+      { label: 'Expired (TTL)', value: s.expired_ttl == null ? '-' : F(s.expired_ttl) }])
+    : `<div class="chart-empty">BIND cache statistics are not reachable at <span class="mono">${esc(s.url)}</span>.<br>Deploy once so Diddy can enable the statistics channel.<br><small>${esc(s.error || '')}</small></div>`}</div>
+    <div class="panel"><div class="cache-head"><h2>Hit ratio over time</h2><select class="filter cache-range" id="cache-range" aria-label="Range">${Object.keys(RANGE_SECS).map(r => `<option ${r === CACHE_VIEW.range ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+      ${hasHist ? `<div class="w-meta">${hist.hit_ratio == null ? '-' : hist.hit_ratio + '%'} of <b>${F(hist.hits + hist.misses)}</b> cache lookups were answered from the cache in ${esc(hist.range)}</div><div class="chart-host" id="cache-chart"></div>`
+      : '<div class="chart-empty">Collecting cache statistics. The graph appears after a couple of samples.</div>'}</div>
+    <div class="panel"><h2>Cached record types</h2>${s.available ? hbars(s.types.map(([t, n]) => [t, n]), s.rrsets.positive) : '<div class="chart-empty">No data</div>'}</div>
+    <div class="panel"><h2>Look up a name</h2>
+      <p class="muted">Shows what BIND already has in its cache without starting a new lookup. TTL is the time left before the entry expires.</p>
+      ${c.tools.dig ? '' : '<div class="conflict">dig is not installed on this server (package bind9-dnsutils), so lookups are not available.</div>'}
+      <form id="cache-lookup" class="cache-lookup"><input class="filter" name="name" placeholder="www.example.com or 8.8.8.8" aria-label="Name" required>
+        <select class="filter" name="type" aria-label="Type">${c.lookup_types.map(t => `<option>${t}</option>`).join('')}</select>
+        <button class="btn">Look up</button></form><div id="cache-lookup-out"></div></div>
+    <div class="panel"><h2>Cache settings</h2><div class="facts">
+      <div><span>Max cache size</span><b>${esc(st.max_cache_size || 'BIND default')}</b></div>
+      <div><span>Max cache TTL</span><b>${dur(st.max_cache_ttl)}</b></div>
+      <div><span>Max negative cache TTL</span><b>${dur(st.max_ncache_ttl)}</b></div></div>
+      <p class="muted" style="margin-bottom:0">Changes to these settings are applied on the next deploy.</p></div>`);
+  if (hasHist) Charts.area($('#cache-chart'), { points: hist.series, span: RANGE_SECS[hist.range], name: 'hit ratio' }, { unit: '%' });
+  $('#cache-range').onchange = e => { CACHE_VIEW.range = e.target.value; route(); };
+  $('#cache-lookup').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, out = $('#cache-lookup-out');
+    try {
+      const r = await api('GET', `/dns-cache/lookup?name=${encodeURIComponent(f.elements['name'].value.trim())}&type=${f.elements['type'].value}`);
+      const src = r.authoritative ? 'answered from a zone on this server, not from the cache' : r.cached ? 'in the cache' : 'not in the cache';
+      out.innerHTML = `<p><span class="tag ${r.cached ? 'on' : r.status === 'NOERROR' ? '' : 'warn'}">${esc(r.status)}</span> <span class="mono">${esc(r.name)} ${esc(r.type)}</span> is ${src}.</p>` +
+        (r.records.length ? table([{ k: 'name', label: 'Name', cls: 'mono' }, { k: 'ttl', label: 'TTL left', cls: 'mono', fmt: v => dur(v) }, { k: 'type', label: 'Type' }, { k: 'value', label: 'Value', cls: 'mono' }], r.records) : '');
+    } catch (err) { if (err.message !== 'Unauthorized') toast(err.message, true); }
+  };
+  on('edit-cache', () => form('Cache settings', [
+    { name: 'max_cache_size', label: 'Max cache size', value: st.max_cache_size, placeholder: 'e.g. 512M, 2G or 50%', help: 'Empty = BIND default (90% of RAM on BIND 9.16 and later). Use K, M or G, a percentage of RAM, or unlimited' },
+    { name: 'max_cache_ttl', label: 'Max cache TTL (seconds)', type: 'number', value: st.max_cache_ttl, placeholder: '604800', help: 'Longest time a positive answer is kept. Empty = BIND default (7 days)' },
+    { name: 'max_ncache_ttl', label: 'Max negative cache TTL (seconds)', type: 'number', value: st.max_ncache_ttl, placeholder: '10800', help: 'Longest time an NXDOMAIN or no-data answer is kept. Empty = BIND default (3 hours)' }
+  ], async d => { await api('PUT', '/dns-cache/settings', d); toast('Cache settings saved. Deploy to apply them.'); route(); }));
+  on('flush-name', () => form('Flush a name from the cache', [
+    { name: 'name', label: 'Domain name', placeholder: 'www.example.com' },
+    { name: 'tree', label: 'Also flush every name below it (rndc flushtree)', type: 'checkbox', value: false }
+  ], async d => { const r = await api('POST', '/dns-cache/flush', d); toast(`${r.command}: ${r.output}`); route(); }, 'Flush'));
+  on('flush-all', async () => {
+    if (!confirm('Flush the entire DNS cache? Clients get slower answers until the cache fills up again.')) return;
+    const r = await api('POST', '/dns-cache/flush', {}); toast(`${r.command}: ${r.output}`); route();
+  });
 }
 
 /* ---------------- DHCP */
@@ -723,7 +787,7 @@ async function vSearch(s) {
 }
 
 /* ---------------- shell */
-const ROUTES = [[/^#\/?(dashboard)?$/, vDashboard], [/^#\/dashboard\/(overview|dns|dhcp)$/, vDashboard], [/^#\/ipam$/, vIpam], [/^#\/ipam\/(\d+)$/, vNetwork], [/^#\/dns$/, vDns], [/^#\/dns\/(\d+)$/, vZone], [/^#\/resolver$/, vResolver],
+const ROUTES = [[/^#\/?(dashboard)?$/, vDashboard], [/^#\/dashboard\/(overview|dns|dhcp)$/, vDashboard], [/^#\/ipam$/, vIpam], [/^#\/ipam\/(\d+)$/, vNetwork], [/^#\/dns$/, vDns], [/^#\/dns\/(\d+)$/, vZone], [/^#\/resolver$/, vResolver], [/^#\/dns-cache$/, vDnsCache],
   [/^#\/dhcp$/, vDhcp], [/^#\/hosts$/, vHosts], [/^#\/audit$/, vAudit], [/^#\/admin$/, vAdmin], [/^#\/deploy$/, vDeploy], [/^#\/health$/, vHealth], [/^#\/system$/, vSystem], [/^#\/search\/(.+)$/, vSearch]];
 async function refreshMe() {
   ME = await api('GET', '/me');

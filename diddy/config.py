@@ -46,6 +46,8 @@ DEFAULTS = {
     "bind_stats_url": "http://127.0.0.1:8053",
     "bind_stats_manage": "true",
     "dns_capacity_qps": "1000",
+    # alamat BIND lokal yang ditanya untuk melihat isi cache (dig +norecurse)
+    "bind_local_addr": "127.0.0.1",
     # Diddy database: mysql | sqlite
     "db_backend": "sqlite",
     "mysql_host": "127.0.0.1",

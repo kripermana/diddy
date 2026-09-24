@@ -35,6 +35,7 @@ default_ns = ns1.corp.local
 default_admin_email = noc@corp.local
 ddns_refresh_interval = 0
 drift_check_interval = 0
+bind_stats_url = http://127.0.0.1:9
 """)
     if os.environ.get("TEST_MYSQL"):
         h, u, pw, dbn, *pfx = os.environ["TEST_MYSQL"].split(":")
@@ -161,6 +162,48 @@ if shutil.which("dnsdist"):
 p = call("get", "/deploy/preview")
 check("forwarders" in p["named_options"], "config resolver dirender")
 
+# ------------------------------------------------------------------ DNS cache
+cc = call("get", "/dns-cache")
+check(cc["recursion"] is True and cc["settings"]["max_cache_size"] == "" and cc["stats"]["available"] is False,
+      "DNS cache: status terbaca, statistik BIND tidak tersedia ditangani")
+call("get", "/dns-cache?range=1y", expect=400, label="DNS cache: range salah ditolak")
+call("put", "/dns-cache/settings", {"max_cache_size": "256m", "max_cache_ttl": 86400, "max_ncache_ttl": 300})
+for bad in ({"max_cache_size": "1K"}, {"max_cache_size": "abc"}, {"max_cache_size": "150%"},
+            {"max_cache_ttl": 0}, {"max_ncache_ttl": 9999999}, {"max_cache_ttl": "x"}):
+    call("put", "/dns-cache/settings", bad, expect=400, label=f"DNS cache: setting salah ditolak {bad}")
+p = call("get", "/deploy/preview")
+check("max-cache-size 256M;" in p["named_options"] and "max-cache-ttl 86400;" in p["named_options"]
+      and "max-ncache-ttl 300;" in p["named_options"], "DNS cache: setting dirender ke options BIND")
+call("put", "/dns-settings", {"recursion": True, "forwarders": "8.8.8.8, 10.9.9.9 port 5353"})
+check(call("get", "/dns-settings")["max_cache_size"] == "256M", "DNS cache: simpan form resolver tidak menghapus setting cache")
+call("put", "/dns-cache/settings", {"max_cache_size": "50%", "max_ncache_ttl": None})
+cs = call("get", "/dns-cache")["settings"]
+check(cs == {"max_cache_size": "50%", "max_cache_ttl": 86400, "max_ncache_ttl": None}, "DNS cache: update sebagian")
+fl = call("post", "/dns-cache/flush", {})
+check(fl.get("command") == "rndc flush" and "dry_run" in fl.get("output", ""), "DNS cache: flush semua (dry run)")
+fl = call("post", "/dns-cache/flush", {"name": "Example.COM."})
+check(fl.get("command") == "rndc flushname example.com", "DNS cache: flush satu nama")
+fl = call("post", "/dns-cache/flush", {"name": "example.com", "tree": True})
+check(fl.get("command") == "rndc flushtree example.com", "DNS cache: flush tree")
+call("post", "/dns-cache/flush", {"name": "bad name!"}, expect=400, label="DNS cache: nama flush salah ditolak")
+check(any(a["action"] == "cache-flush" for a in call("get", "/audit?limit=20")), "DNS cache: flush tercatat di audit")
+call("get", "/dns-cache/lookup?name=example.com&type=BOGUS", expect=400, label="DNS cache: tipe lookup salah ditolak")
+call("get", "/dns-cache/lookup?name=bad!name", expect=400, label="DNS cache: nama lookup salah ditolak")
+if not shutil.which("dig"):
+    call("get", "/dns-cache/lookup?name=example.com", expect=503, label="DNS cache: tanpa dig dijawab 503")
+
+from diddy.dns.cache import cache_counters, summarize  # noqa: E402
+bind_json = {"boot-time": "2026-01-01T00:00:00Z", "views": {
+    "_default": {"resolver": {"cachestats": {"QueryHits": 90, "QueryMisses": 10, "CacheNodes": 40, "DeleteLRU": 2,
+                                             "DeleteTTL": 5, "TreeMemInUse": 1048576, "HeapMemInUse": 1048576},
+                              "cache": {"A": 30, "AAAA": 10, "!AAAA": 4, "NXDOMAIN": 3, "#A": 2, "~A": 9}}},
+    "_bind": {"resolver": {"cachestats": {"QueryHits": 1000, "QueryMisses": 1000}}}}}
+sm = summarize(cache_counters(bind_json))
+check(sm["hit_ratio"] == 90.0 and sm["memory_in_use"] == 2097152 and sm["views"] == ["_default"]
+      and sm["rrsets"] == {"total": 49, "positive": 40, "negative": 7, "stale": 2} and sm["types"][0] == ("A", 30),
+      f"DNS cache: statistik BIND diolah benar {sm}")
+check(cache_counters({"views": {"_bind": {"resolver": {}}}}) is None, "DNS cache: JSON tanpa statistik cache dikenali")
+
 # ------------------------------------------------------------------ deploy
 d = call("post", "/deploy")
 check(d.get("ok") is True, "deploy lolos validasi" + (" " + json.dumps([s for s in d.get("report", []) if not s["ok"]])[:300]
@@ -240,11 +283,25 @@ check(call("get", "/dashboard/layout?board=dns")["widgets"][0]["id"] == "dns_qps
 call("put", "/dashboard/layout?board=dns", {"widgets": [{"id": "bukan_widget"}]}, expect=400, label="widget asing ditolak")
 check(call("delete", "/dashboard/layout?board=dns")["default"] is True, "reset layout ke default")
 
+# ------------------------------------------------------------------ DNS cache: hit ratio historis
+with app.app_context():
+    _x("DELETE FROM metrics WHERE kind='dns'")
+    for i, (h, m) in enumerate([(100, 100), (190, 110), (10, 5)]):   # sampel ke-3: BIND restart
+        _x("INSERT INTO metrics(ts,kind,data) VALUES(?,?,?)",
+           (NOW - 180 + i * 60, "dns", _json.dumps({"boot": "b1" if i < 2 else "b2", "total": 0, "rcodes": {},
+                                                    "qtypes": {}, "ns": {}, "cache": {"hits": h, "misses": m}})))
+hist = call("get", "/dns-cache?range=1h")["history"]
+check(hist["hits"] == 100 and hist["misses"] == 15 and hist["hit_ratio"] == 87.0
+      and all(p["v"] is None or 0 <= p["v"] <= 100 for p in hist["series"]),
+      f"DNS cache: hit ratio historis, restart BIND ditangani {hist}")
+
 # ------------------------------------------------------------------ user read-only
 call("post", "/users", {"username": "viewer", "password": "viewer123", "role": "readonly"})
 call("post", "/logout")
 call("post", "/login", {"username": "viewer", "password": "viewer123"})
 call("post", "/zones", {"name": "x.local"}, expect=403, label="user read-only tidak bisa mengubah")
+call("post", "/dns-cache/flush", {}, expect=403, label="user read-only tidak bisa flush cache DNS")
+call("get", "/dns-cache", label="user read-only boleh melihat cache DNS")
 call("put", "/dashboard/layout?board=overview", {"widgets": [{"id": "health", "size": "S"}]},
      label="user read-only boleh menyimpan layout dashboard miliknya")
 call("get", "/networks")
@@ -257,6 +314,11 @@ cli = subprocess.run([sys.executable, "-m", "diddy", "drift"], env=env, capture_
 check(cli.returncode == 0, "CLI drift: bersih " + (cli.stdout + cli.stderr)[-600:] if cli.returncode else "CLI drift: bersih")
 cli = subprocess.run([sys.executable, "-m", "diddy", "version"], env=env, capture_output=True, text=True, cwd=ROOT)
 check(cli.stdout.startswith("Diddy "), "CLI version")
+cli = subprocess.run([sys.executable, "-m", "diddy", "cache-flush", "example.com", "--tree"], env=env,
+                     capture_output=True, text=True, cwd=ROOT)
+check(cli.returncode == 0 and "rndc flushtree example.com" in cli.stdout, "CLI cache-flush " + cli.stdout[-300:])
+cli = subprocess.run([sys.executable, "-m", "diddy", "cache-stats"], env=env, capture_output=True, text=True, cwd=ROOT)
+check(cli.returncode == 1 and "tidak tersedia" in cli.stdout, "CLI cache-stats tanpa BIND " + cli.stdout[-300:])
 
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"\n{COUNT[0] - len(FAILS)}/{COUNT[0]} lolos")

@@ -2,6 +2,18 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.2.0]
+### Ditambahkan
+- Halaman **DNS cache** (DNS > Resolver > DNS cache) untuk mengelola cache resolver BIND:
+  - Statistik saat ini: hit ratio, jumlah RRset (positif, negatif, stale), cache node, memori terpakai, entri yang dibuang karena cache penuh atau TTL habis, dan jenis record terbanyak.
+  - Grafik hit ratio 1 jam, 6 jam, 24 jam, atau 7 hari. Counter hit/miss ikut disimpan collector metrik tiap menit, dan restart BIND ditangani.
+  - Lookup isi cache untuk satu nama tanpa memicu resolusi baru (`dig +norecurse`), lengkap dengan sisa TTL. IP otomatis dijadikan lookup PTR.
+  - Flush seluruh cache (`rndc flush`), satu nama (`rndc flushname`), atau satu nama beserta turunannya (`rndc flushtree`). Flush dicatat di audit log dan tidak menandai perubahan tertunda.
+  - Pengaturan `max-cache-size`, `max-cache-ttl`, `max-ncache-ttl`, dirender ke options BIND dan berlaku setelah deploy.
+- Endpoint `/dns-cache`, `/dns-cache/settings`, `/dns-cache/flush`, `/dns-cache/lookup`.
+- Perintah CLI `diddy cache-stats`, `diddy cache-flush [NAMA] [--tree]`, `diddy cache-lookup NAMA [TIPE]`.
+- Config `bind_local_addr` (default `127.0.0.1`): alamat BIND yang ditanya untuk lookup cache.
+
 ## [2.1.0]
 ### Ditambahkan
 - Dashboard baru dengan tab **Overview**, **DNS**, dan **DHCP**, bergaya widget ala Infoblox, dengan pilihan rentang 1 jam, 6 jam, 24 jam, dan 7 hari serta refresh otomatis tiap menit.

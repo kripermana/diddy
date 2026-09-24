@@ -1,14 +1,18 @@
 """Endpoint REST DNS."""
 
 import json
+import shutil
 
 from flask import Blueprint, jsonify, request
 
 from ..audit import changed
 from ..auth import auth
+from ..config import DRY
 from ..core.errors import ApiError
-from ..core.util import body, clean, parse_ip
+from ..core.util import body, boolv, clean, parse_ip
 from ..db.connection import q, state_set, x
+from ..metrics import RANGES, cache_report
+from .cache import CACHE_DEFAULTS, LOOKUP_TYPES, cache_flush, cache_lookup, cache_stats, validate_cache_settings
 from .ddns import ddns_refresh, dynamic_records
 from .resolver import dns_settings, recursion_acl, validate_dns_settings, validate_forwarder
 from .zones import derived_records, get_zone, is_reverse, rel, validate_record, validate_zone, zone_records
@@ -140,6 +144,42 @@ def api_forwarder(fid):
       (o["domain"], o["servers"], o["policy"], o["comment"], fid))
     changed("update", f"forwarder {o['domain']}", o)
     return jsonify(id=fid, **o)
+
+
+@bp.get("/api/v1/dns-cache")
+@auth
+def api_dns_cache():
+    rng = request.args.get("range", "24h")
+    if rng not in RANGES:
+        raise ApiError(f"range harus salah satu dari: {', '.join(RANGES)}")
+    cfg = dns_settings()
+    return jsonify(recursion=cfg["recursion"], settings={k: cfg[k] for k in CACHE_DEFAULTS},
+                   stats=cache_stats(), history=cache_report(rng), lookup_types=LOOKUP_TYPES,
+                   tools={"rndc": bool(shutil.which("rndc")), "dig": bool(shutil.which("dig"))}, dry_run=DRY)
+
+
+@bp.put("/api/v1/dns-cache/settings")
+@auth
+def api_dns_cache_settings():
+    cfg = dns_settings()
+    new = validate_cache_settings(body(), cfg)
+    cfg.update(new)
+    state_set("dns_settings", json.dumps(cfg))
+    changed("update", "dns cache settings", new)
+    return jsonify(new)
+
+
+@bp.post("/api/v1/dns-cache/flush")
+@auth
+def api_dns_cache_flush():
+    d = body()
+    return jsonify(cache_flush(d.get("name"), boolv(d.get("tree"))))
+
+
+@bp.get("/api/v1/dns-cache/lookup")
+@auth
+def api_dns_cache_lookup():
+    return jsonify(cache_lookup(request.args.get("name"), request.args.get("type", "A")))
 
 
 @bp.post("/api/v1/ddns/refresh")

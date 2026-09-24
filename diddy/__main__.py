@@ -7,6 +7,9 @@
     python -m diddy migrate-sqlite FILE [--force] [--src-prefix=xxx_]
     python -m diddy rebase-paths OLD NEW          ganti awalan path acuan drift (dipakai migrasi)
     python -m diddy stats                         jumlah objek per tabel
+    python -m diddy cache-stats                   statistik cache DNS BIND
+    python -m diddy cache-flush [NAMA] [--tree]   hapus cache DNS: semua, satu nama, atau nama + turunannya
+    python -m diddy cache-lookup NAMA [TIPE]      lihat isi cache untuk satu nama (tanpa resolusi baru)
 """
 import hashlib
 import logging
@@ -121,6 +124,54 @@ def cmd_rebase_paths(old, new):
         return 0
 
 
+def cmd_cache_stats():
+    from .dns.cache import cache_stats
+    s = cache_stats()
+    if not s["available"]:
+        print(f"Statistik cache tidak tersedia dari {s['url']}: {s['error']}")
+        return 1
+    r = s["rrsets"]
+    ratio = "-" if s["hit_ratio"] is None else f"{s['hit_ratio']}%"
+    mem = "-" if s["memory_in_use"] is None else f"{s['memory_in_use'] / 1048576:.1f} MB"
+    print(f"  hit ratio      {ratio} ({s['query_hits']} hit, {s['query_misses']} miss sejak BIND start)")
+    print(f"  RRset          {r['total']} (positif {r['positive']}, negatif {r['negative']}, stale {r['stale']})")
+    print(f"  memori         {mem}")
+    print(f"  dibuang        {s['evicted_lru'] if s['evicted_lru'] is not None else '-'} (LRU), "
+          f"{s['expired_ttl'] if s['expired_ttl'] is not None else '-'} (TTL habis)")
+    if s["types"]:
+        print("  tipe terbanyak " + ", ".join(f"{t}={n}" for t, n in s["types"]))
+    return 0
+
+
+def cmd_cache_flush(name, tree):
+    from .core.errors import ApiError
+    from .dns.cache import cache_flush
+    with _app().app_context():
+        g.user = CLI_USER
+        try:
+            r = cache_flush(name, tree)
+        except ApiError as e:
+            print(f"Gagal: {e}")
+            return 1
+        print(f"{r['command']}: {r['output']}")
+        return 0
+
+
+def cmd_cache_lookup(name, rtype):
+    from .core.errors import ApiError
+    from .dns.cache import cache_lookup
+    try:
+        r = cache_lookup(name, rtype)
+    except ApiError as e:
+        print(f"Gagal: {e}")
+        return 1
+    src = "zona authoritative" if r["authoritative"] else "cache" if r["cached"] else "tidak ada di cache"
+    print(f"{r['name']} {r['type']}: {r['status']}, {src}")
+    for rec in r["records"]:
+        print(f"  {rec['name']:<40} {rec['ttl']:>7} {rec['type']:<6} {rec['value']}")
+    return 0
+
+
 def cmd_migrate(path, force, src_prefix):
     from .db import init_db, migrate_sqlite
     init_db()
@@ -146,6 +197,13 @@ def main(argv=None):
         return cmd_stats()
     if cmd == "rebase-paths" and len(argv) >= 3:
         return cmd_rebase_paths(argv[1], argv[2])
+    if cmd == "cache-stats":
+        return cmd_cache_stats()
+    if cmd == "cache-flush":
+        args = [a for a in argv[1:] if not a.startswith("--")]
+        return cmd_cache_flush(args[0] if args else None, "--tree" in argv)
+    if cmd == "cache-lookup" and len(argv) >= 2:
+        return cmd_cache_lookup(argv[1], argv[2] if len(argv) > 2 else "A")
     if cmd in ("version", "--version", "-V"):
         print(f"{NAME} {VERSION} - {SLOGAN}")
         return 0

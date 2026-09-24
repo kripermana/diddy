@@ -160,14 +160,14 @@ Sejak 1.9.0 Diddy berupa package Python modular, bukan satu file lagi. Rincianny
 
 ```
 diddy/
-├── __main__.py        CLI (serve, deploy, drift, reset-password, migrate-sqlite)
+├── __main__.py        CLI (serve, deploy, drift, reset-password, migrate-sqlite, stats, cache-*)
 ├── web.py             Flask app factory, registrasi blueprint
 ├── config.py          baca /etc/diddy/diddy.conf
 ├── core/              error, log, util, state runtime
 ├── db/                koneksi MySQL/SQLite, skema, prefix tabel
 ├── ipam/              network, utilisasi, IP map, discovery
 ├── dhcp/              lease Kea, DHCP range, config Kea
-├── dns/               zona, record, DDNS, resolver, forwarder, dnsdist
+├── dns/               zona, record, DDNS, resolver, forwarder, dnsdist, cache
 ├── deploy/            pipeline deploy, deteksi drift
 ├── hosts.py  users.py  auth.py  audit.py  system.py  worker.py
 └── static/            web UI
@@ -187,6 +187,8 @@ TEST_MYSQL="127.0.0.1:user:pass:database:prefix_" python3 tests/smoke_test.py   
 sudo diddy deploy
 sudo diddy drift --repair
 sudo diddy reset-password admin 'PasswordBaru123'
+sudo diddy cache-stats
+sudo diddy cache-flush example.com --tree
 sudo diddy version
 ```
 

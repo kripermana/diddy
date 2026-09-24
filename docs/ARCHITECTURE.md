@@ -2,7 +2,7 @@
 
 *Your DDI Friend*
 
-(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.1.0.
+(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.2.0.
 
 Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4), dan dnsdist (upstream DoT/DoH) dari satu database MySQL atau SQLite. Database adalah sumber kebenaran; file config service selalu dihasilkan dari database, divalidasi, lalu baru ditulis.
 
@@ -10,7 +10,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 
 | Modul | Tanggung jawab |
 |---|---|
-| `__main__.py` | CLI: `serve`, `deploy`, `drift`, `reset-password`, `migrate-sqlite`, `version` |
+| `__main__.py` | CLI: `serve`, `deploy`, `drift`, `reset-password`, `migrate-sqlite`, `rebase-paths`, `stats`, `cache-stats`, `cache-flush`, `cache-lookup`, `version` |
 | `web.py` | Flask app factory: registrasi blueprint, error handler, header keamanan, UI statis |
 | `wsgi.py` | Objek `app` untuk server WSGI lain (`waitress-serve diddy.wsgi:app`) |
 | `worker.py` | Thread latar: refresh DDNS dan pemeriksaan drift, jadwal masing-masing |
@@ -35,7 +35,8 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `dns/zones.py` | Zona, record, validasi, render zone file dan `named.conf.diddy` |
 | `dns/ddns.py` | Record A/PTR dari lease, disisipkan ke blok dinamis zone file |
 | `dns/resolver.py` | Recursion, ACL, forwarder, conditional forwarder, config dnsdist |
-| `dns/routes.py` | Endpoint zona, record, resolver, forwarder, refresh DDNS |
+| `dns/cache.py` | Cache BIND: validasi dan render pengaturan cache, statistik dari statistics-channel, lookup (`dig +norecurse`), flush (`rndc`) |
+| `dns/routes.py` | Endpoint zona, record, resolver, forwarder, cache DNS, refresh DDNS |
 | `hosts.py` | Host object: DNS + PTR + reservasi DHCP dalam satu objek, import CSV |
 | `deploy/drift.py` | Salinan file yang ditulis Diddy, deteksi dan pemulihan drift |
 | `deploy/pipeline.py` | `run_deploy()`: render, validasi, tulis, reload |
@@ -53,6 +54,7 @@ Import hanya boleh mengarah ke lapisan yang sama atau di bawahnya. Aturan ini ya
 5  Entry point       __main__  web  wsgi  worker
 4  HTTP              ipam.routes  dhcp.routes  dns.routes  deploy.routes  hosts  users  system
 3  Logika domain     dhcp.leases -> dns.zones -> ipam.networks -> dhcp.kea / dns.resolver
+                     dns.cache -> dns.resolver
                      deploy.drift -> dns.ddns -> deploy.pipeline
 2  Layanan bersama   audit  auth
 1  Data              db.tables  db.connection  db.schema

@@ -1,6 +1,6 @@
 # Diddy REST API
 
-Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.1.0.
+Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.2.0.
 
 ## Autentikasi
 
@@ -65,6 +65,10 @@ Semua perubahan data hanya tersimpan di database dan menyalakan tanda *pending*.
 | GET, PUT | `/dns-settings` | Setting resolver, forwarder, upstream terenkripsi |
 | GET, POST | `/forwarders` | Daftar / buat conditional forwarder |
 | PUT, DELETE | `/forwarders/{id}` | Ubah / hapus conditional forwarder |
+| GET | `/dns-cache?range=1h\|6h\|24h\|7d` | Cache DNS BIND: statistik saat ini, hit ratio historis, pengaturan cache |
+| PUT | `/dns-cache/settings` | Ubah `max_cache_size` (`512M`, `2G`, `50%`, `unlimited`, kosong = default), `max_cache_ttl`, `max_ncache_ttl` (detik, `null` = default). Berlaku setelah deploy |
+| POST | `/dns-cache/flush` | Hapus cache sekarang: body `{}` = semua, `{"name": "example.com"}` = satu nama, tambah `"tree": true` untuk nama beserta turunannya |
+| GET | `/dns-cache/lookup?name=&type=` | Isi cache untuk satu nama tanpa resolusi baru (butuh `dig`); IP otomatis jadi lookup PTR |
 | POST | `/ddns/refresh` | Refresh DDNS sekarang |
 | GET | `/deploy/preview` | Isi file yang akan ditulis |
 | POST | `/deploy` | Validasi dan terapkan ke service |
@@ -90,6 +94,10 @@ curl $A $J -d '{"zone_id":1,"name":"www","type":"CNAME","value":"srv01.corp.loca
 
 # terapkan ke BIND dan Kea
 curl $A -X POST $S/deploy
+
+# cache DNS: lihat isi cache untuk satu nama, lalu hapus nama itu beserta turunannya
+curl $A "$S/dns-cache/lookup?name=www.example.com&type=A"
+curl $A $J -d '{"name":"example.com","tree":true}' $S/dns-cache/flush
 ```
 
 Nilai `ip` pada host bisa berupa IP biasa, `next:<cidr>`, `next:<id-network>`, atau `func:nextavailableip:<cidr>`.
