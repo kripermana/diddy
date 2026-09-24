@@ -193,6 +193,17 @@ if not shutil.which("dig"):
     call("get", "/dns-cache/lookup?name=example.com", expect=503, label="DNS cache: tanpa dig dijawab 503")
 
 from diddy.dns.cache import cache_counters, summarize  # noqa: E402
+from unittest import mock  # noqa: E402
+import diddy.dns.cache as _dc  # noqa: E402
+_fx = os.path.join(ROOT, "tests", "fixtures")
+for _k, _want in (("pos", (True, False, "NOERROR")), ("nx", (True, True, "NXDOMAIN")),
+                  ("nodata", (True, True, "NOERROR")), ("none", (False, False, "NOERROR"))):
+    _out = open(os.path.join(_fx, f"dig_{_k}.txt")).read()
+    with mock.patch.object(_dc, "run", return_value=(True, _out)), \
+         mock.patch.object(_dc.shutil, "which", return_value="/usr/bin/dig"):
+        _r = _dc.cache_lookup("www.corp.local", "A")
+    check((_r["cached"], _r["negative"], _r["status"]) == _want,
+          f"DNS cache: lookup dari output dig BIND asli ({_k}) -> {(_r['cached'], _r['negative'], _r['status'])}")
 bind_json = {"boot-time": "2026-01-01T00:00:00Z", "views": {
     "_default": {"resolver": {"cachestats": {"QueryHits": 90, "QueryMisses": 10, "CacheNodes": 40, "DeleteLRU": 2,
                                              "DeleteTTL": 5, "TreeMemInUse": 1048576, "HeapMemInUse": 1048576},

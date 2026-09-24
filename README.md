@@ -129,6 +129,10 @@ Endpoint utama: `networks`, `networks/<id>/ipmap`, `networks/<id>/next_available
 
 Jangan edit file di atas secara manual; semua ditimpa saat deploy.
 
+## Melanjutkan pengembangan dengan Claude Code
+
+`CLAUDE.md` berisi konteks proyek (konvensi, cara menguji, invarian, jebakan, backlog) dan dibaca otomatis oleh Claude Code saat dibuka di folder ini, misalnya lewat ekstensi Claude Code di VS Code. Skill proyek ada di `.claude/skills/`: `/uji-diddy`, `/rilis-diddy`, `/uji-upgrade`.
+
 ## Riwayat versi dan GitHub
 
 Semua perubahan tercatat di [`CHANGELOG.md`](CHANGELOG.md). Untuk menyusun repository git dengan satu commit dan satu tag per versi dari tarball rilis:

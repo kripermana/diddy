@@ -1,0 +1,12 @@
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN, id: 52527
+;; flags: qr ra; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+; COOKIE: 4215508b80e2b73e010000006ab50616983d2b83ab03ada8 (good)
+;; AUTHORITY SECTION:
+corp.local.		248	IN	SOA	ns1.corp.local. noc.corp.local. 1 3600 900 1209600 300
+

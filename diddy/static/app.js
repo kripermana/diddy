@@ -645,7 +645,7 @@ async function vDnsCache() {
     const f = e.target, out = $('#cache-lookup-out');
     try {
       const r = await api('GET', `/dns-cache/lookup?name=${encodeURIComponent(f.elements['name'].value.trim())}&type=${f.elements['type'].value}`);
-      const src = r.authoritative ? 'answered from a zone on this server, not from the cache' : r.cached ? 'in the cache' : 'not in the cache';
+      const src = r.authoritative ? 'answered from a zone on this server, not from the cache' : r.negative ? `cached as a negative answer (${r.status === 'NXDOMAIN' ? 'name does not exist' : 'no record of this type'}), expires in ${dur(r.negative_ttl)}` : r.cached ? 'in the cache' : 'not in the cache';
       out.innerHTML = `<p><span class="tag ${r.cached ? 'on' : r.status === 'NOERROR' ? '' : 'warn'}">${esc(r.status)}</span> <span class="mono">${esc(r.name)} ${esc(r.type)}</span> is ${src}.</p>` +
         (r.records.length ? table([{ k: 'name', label: 'Name', cls: 'mono' }, { k: 'ttl', label: 'TTL left', cls: 'mono', fmt: v => dur(v) }, { k: 'type', label: 'Type' }, { k: 'value', label: 'Value', cls: 'mono' }], r.records) : '');
     } catch (err) { if (err.message !== 'Unauthorized') toast(err.message, true); }

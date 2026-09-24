@@ -132,7 +132,8 @@ def cmd_cache_stats():
         return 1
     r = s["rrsets"]
     ratio = "-" if s["hit_ratio"] is None else f"{s['hit_ratio']}%"
-    mem = "-" if s["memory_in_use"] is None else f"{s['memory_in_use'] / 1048576:.1f} MB"
+    m = s["memory_in_use"]
+    mem = "-" if m is None else f"{m / 1048576:.1f} MB" if m >= 1048576 else f"{m / 1024:.0f} KB"
     print(f"  hit ratio      {ratio} ({s['query_hits']} hit, {s['query_misses']} miss sejak BIND start)")
     print(f"  RRset          {r['total']} (positif {r['positive']}, negatif {r['negative']}, stale {r['stale']})")
     print(f"  memori         {mem}")
@@ -165,7 +166,9 @@ def cmd_cache_lookup(name, rtype):
     except ApiError as e:
         print(f"Gagal: {e}")
         return 1
-    src = "zona authoritative" if r["authoritative"] else "cache" if r["cached"] else "tidak ada di cache"
+    src = ("zona authoritative" if r["authoritative"] else
+           f"cache (jawaban negatif, sisa {r['negative_ttl']} detik)" if r.get("negative") else
+           "cache" if r["cached"] else "tidak ada di cache")
     print(f"{r['name']} {r['type']}: {r['status']}, {src}")
     for rec in r["records"]:
         print(f"  {rec['name']:<40} {rec['ttl']:>7} {rec['type']:<6} {rec['value']}")

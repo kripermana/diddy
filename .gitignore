@@ -25,7 +25,3 @@ initial_admin_password
 
 # Arsip rilis
 *.tar.gz
-
-CLAUDE*
-claude*
-CLAUDE.MD

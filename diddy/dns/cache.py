@@ -182,11 +182,28 @@ def _lookup_target(name, rtype):
         return valid_fqdn(name, "domain name"), rtype
 
 
+def _parse_dig(out):
+    """Pisahkan record per bagian (ANSWER / AUTHORITY) dari output dig +comments."""
+    sections, cur = {"ANSWER": [], "AUTHORITY": []}, None
+    for line in out.splitlines():
+        head = re.match(r";; (\w+) SECTION:", line)
+        if head:
+            cur = head.group(1) if head.group(1) in sections else None
+            continue
+        p = line.split(None, 4)
+        if cur is None or line.startswith(";") or len(p) < 5 or not p[1].isdigit():
+            continue
+        sections[cur].append({"name": p[0].rstrip(".") or ".", "ttl": int(p[1]), "type": p[3], "value": p[4]})
+    return sections
+
+
 def cache_lookup(name, rtype="A"):
     """Apa yang diingat BIND untuk satu nama, tanpa memicu resolusi baru (dig +norecurse ke BIND lokal).
 
     TTL yang tampil adalah sisa waktu di cache. Flag `aa` berarti jawabannya dari zona authoritative
-    milik server ini, bukan dari cache.
+    milik server ini, bukan dari cache. Jawaban negatif yang ter-cache (NXDOMAIN, atau NOERROR tanpa
+    jawaban alias NODATA) dikenali dari record SOA di bagian authority; nama yang belum pernah ditanyakan
+    hanya mendapat rujukan (NS) atau jawaban kosong.
     """
     rtype = (rtype or "A").strip().upper()
     if rtype not in LOOKUP_TYPES:
@@ -194,18 +211,17 @@ def cache_lookup(name, rtype="A"):
     name, rtype = _lookup_target(name, rtype)
     if not shutil.which("dig"):
         raise ApiError("dig tidak ditemukan di server ini (paket bind9-dnsutils)", 503)
-    ok, out = run(["dig", "+norecurse", "+noall", "+comments", "+answer", "+time=2", "+tries=1",
+    ok, out = run(["dig", "+norecurse", "+noall", "+comments", "+answer", "+authority", "+time=2", "+tries=1",
                    "@" + C["bind_local_addr"], name, rtype], timeout=10)
     m = re.search(r"status: (\w+)", out)
     if not m:
         raise ApiError(f"BIND di {C['bind_local_addr']} tidak menjawab: {out[:300]}", 502)
     fl = re.search(r"flags: ([a-z ]*);", out)
     flags = fl.group(1).split() if fl else []
-    recs = []
-    for line in out.splitlines():
-        p = line.split(None, 4)
-        if line.startswith(";") or len(p) < 5 or not p[1].isdigit():
-            continue
-        recs.append({"name": p[0].rstrip(".") or ".", "ttl": int(p[1]), "type": p[3], "value": p[4]})
-    return {"name": name, "type": rtype, "status": m.group(1), "authoritative": "aa" in flags,
-            "cached": bool(recs) and "aa" not in flags, "records": recs}
+    sec = _parse_dig(out)
+    recs, aa, status = sec["ANSWER"], "aa" in flags, m.group(1)
+    soa = [r for r in sec["AUTHORITY"] if r["type"] == "SOA"]
+    negative = not recs and not aa and status in ("NXDOMAIN", "NOERROR") and bool(soa)
+    return {"name": name, "type": rtype, "status": status, "authoritative": aa,
+            "cached": (bool(recs) and not aa) or negative, "negative": negative,
+            "negative_ttl": soa[0]["ttl"] if negative else None, "records": recs}

@@ -13,6 +13,8 @@ Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama Lit
 - Endpoint `/dns-cache`, `/dns-cache/settings`, `/dns-cache/flush`, `/dns-cache/lookup`.
 - Perintah CLI `diddy cache-stats`, `diddy cache-flush [NAMA] [--tree]`, `diddy cache-lookup NAMA [TIPE]`.
 - Config `bind_local_addr` (default `127.0.0.1`): alamat BIND yang ditanya untuk lookup cache.
+- Lookup cache mengenali jawaban negatif yang ter-cache (NXDOMAIN dan NODATA) dari record SOA di bagian authority, lengkap dengan sisa TTL negatifnya.
+- Skill Claude Code proyek (`.claude/skills/`) dan bagian README-nya ikut disertakan.
 
 ## [2.1.0]
 ### Ditambahkan

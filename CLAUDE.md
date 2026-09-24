@@ -16,6 +16,11 @@ Dia suka jawaban singkat, hasil jadi yang sudah diuji, dan ingin diberi tahu bil
 - Grafik UI ditulis sendiri di `diddy/static/charts.js` (SVG, tanpa library CDN: server target tidak punya internet).
 - Rilis dikemas sebagai `diddy-X.Y.Z.tar.gz` dengan root folder `diddy/`.
 
+## Skill proyek
+- `/uji-diddy`: verifikasi lengkap sebelum menyatakan selesai.
+- `/rilis-diddy`: checklist rilis versi baru.
+- `/uji-upgrade`: uji upgrade.sh/install.sh termasuk rollback.
+
 ## Menguji (wajib sebelum menyatakan selesai)
 ```bash
 python3 -m pyflakes diddy tests tools
