@@ -1,0 +1,12 @@
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 47902
+;; flags: qr ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+; COOKIE: 8ecd1108a62ddef8010000006ab506163b41cc65e710fc89 (good)
+;; ANSWER SECTION:
+www.corp.local.		300	IN	A	10.0.0.10
+

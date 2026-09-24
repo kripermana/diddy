@@ -10,12 +10,13 @@ from ..core.util import boolv, now, parse_ip, split_list, valid_fqdn
 from ..db.connection import q, state_get
 from ..ipam.networks import all_nets
 from ..version import VERSION
+from .cache import CACHE_DEFAULTS, render_cache_options, validate_cache_settings
 
 
 DNS_DEFAULTS = {"recursion": False, "forwarders": [], "forward_policy": "first",
                 "allow_recursion": [], "auto_allow_ipam": True, "dnssec_validation": "auto",
                 "upstream_mode": "plain", "encrypted_upstreams": [], "validate_certificates": True,
-                "dnsdist_policy": "leastOutstanding"}
+                "dnsdist_policy": "leastOutstanding", **CACHE_DEFAULTS}
 
 
 DNSDIST_POLICIES = ["leastOutstanding", "firstAvailable", "roundrobin", "wrandom"]
@@ -136,6 +137,7 @@ def validate_dns_settings(d):
         if not shutil.which("dnsdist"):
             raise ApiError("dnsdist belum terpasang di server ini. Pasang dengan 'apt install dnsdist', "
                            "atau jalankan ./upgrade.sh dari paket Diddy terbaru")
+    out.update(validate_cache_settings(d, dns_settings()))
     return out
 
 
@@ -193,6 +195,7 @@ def render_options():
                        ", ".join(f"{u['protocol'].upper()} {u['address']} ({u['hostname']})"
                                  for u in cfg["encrypted_upstreams"]))
         out.append(f"dnssec-validation {cfg['dnssec_validation']};")
+        out += render_cache_options(cfg)
     else:
         out.append("recursion no;")
         out.append("allow-recursion { none; };")

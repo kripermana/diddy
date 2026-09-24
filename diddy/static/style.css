@@ -352,3 +352,11 @@ svg .cbar { transition: opacity .15s; } svg .cbar:hover { opacity: .75; }
 .pool-n { grid-column: 1 / -1; font-size: 12px; }
 @media (max-width: 1100px) { .widget.size-S, .widget.size-M { grid-column: span 6; } }
 @media (max-width: 760px) { .widget.size-S, .widget.size-M, .widget.size-L { grid-column: span 12; } .kpi-val { font-size: 22px; } }
+
+/* halaman DNS cache (nama class berawalan cache- supaya tidak bentrok dengan class grafik) */
+.cache-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.cache-head h2 { margin: 0; }
+.cache-range { width: auto; }
+.cache-lookup { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.cache-lookup select.filter { width: auto; }
+@media (max-width: 760px) { .cache-lookup .filter { width: 100%; } }
