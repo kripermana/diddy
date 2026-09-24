@@ -1,0 +1,6 @@
+#!/bin/sh
+# Perintah `diddy`: pembungkus untuk `python -m diddy` dengan config sistem.
+#   diddy deploy | drift [--repair] | reset-password USER [PW] | version | serve
+export DIDDY_CONF="${DIDDY_CONF:-/etc/diddy/diddy.conf}"
+cd /opt/diddy || exit 1
+exec /opt/diddy/venv/bin/python -m diddy "$@"

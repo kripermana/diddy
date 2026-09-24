@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diddy - Your DDI Friend</title>
+<meta name="author" content="kripermana">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='6' height='6' fill='%2322a3a3'/><rect x='9' y='1' width='6' height='6' fill='%23e3a008'/><rect x='1' y='9' width='6' height='6' fill='%23e3a008'/><rect x='9' y='9' width='6' height='6' fill='%2322a3a3'/></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/dashboard" aria-label="Diddy home"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Diddy</a>
+  <nav id="nav">
+    <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
+    <a href="#/ipam" data-nav="ipam">IPAM</a>
+    <a href="#/dns" data-nav="dns">DNS</a>
+    <a href="#/dhcp" data-nav="dhcp">DHCP</a>
+    <a href="#/hosts" data-nav="hosts">Hosts</a>
+    <a href="#/audit" data-nav="audit">Audit log</a>
+    <a href="#/admin" data-nav="admin">Admin</a>
+  </nav>
+  <form id="search" role="search"><input type="search" placeholder="Search IP, name, MAC, network" aria-label="Search"></form>
+  <select id="theme" aria-label="Theme">
+    <option value="light">Light</option><option value="dark">Dark</option><option value="dracula">Dracula</option>
+    <option value="nord">Nord</option><option value="solarized">Solarized</option>
+  </select>
+  <div class="user"><span id="uname"></span><button class="lnk light" id="logout" type="button">Log out</button></div>
+</header>
+<div id="pending" hidden>
+  <span>You have changes that are not yet applied to DNS and DHCP.</span>
+  <a href="#/deploy" class="btn small amber">Review and deploy</a>
+</div>
+<main id="main"></main>
+<footer class="app">
+  <span>Diddy <span id="footver">-</span> &middot; <em id="footslogan">Your DDI Friend</em> &middot; &copy; 2026 kripermana &middot; MIT License</span>
+  <span><a href="#/health">Health</a> &middot; <a href="#/system">System information</a></span>
+</footer>
+
+<div id="login" hidden>
+  <form class="login-box" id="loginForm">
+    <div class="brand dark"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Diddy</div>
+    <p class="slogan">Your DDI Friend</p>
+    <p class="muted small">DNS &middot; DHCP &middot; IPAM</p>
+    <label>Username<input name="username" autocomplete="username" required></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="loginErr"></div>
+    <button class="btn primary wide">Log in</button>
+  </form>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('diddy-theme')||localStorage.getItem('liteddi-theme')||'light';}catch(e){}</script>
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

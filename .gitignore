@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Data runtime dan rahasia: jangan pernah di-commit
+*.db
+*.sqlite
+secret.key
+initial_admin_password
+/data/
+/etc/
+*.log
+*.bak
+*.drift.bak
+.diddy-staging.conf
+
+# Editor dan OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Arsip rilis
+*.tar.gz

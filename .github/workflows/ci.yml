@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validator BIND dan Kea
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bind9-utils kea-dhcp4-server
+      - name: Dependency Python
+        run: pip install -r requirements.txt pyflakes pycodestyle
+      - name: Lint
+        run: |
+          python -m pyflakes diddy tests tools
+          python -m pycodestyle --max-line-length=120 diddy
+      - name: Smoke test
+        run: python tests/smoke_test.py

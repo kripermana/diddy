@@ -1,0 +1,19 @@
+[Unit]
+Description=Diddy - DNS/DHCP/IPAM manager
+After=network-online.target mysql.service mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=DIDDY_CONF=/etc/diddy/diddy.conf
+WorkingDirectory=/opt/diddy
+ExecStart=/opt/diddy/venv/bin/python -m diddy serve
+Restart=on-failure
+RestartSec=3
+# runs as root: it writes /etc/bind + /etc/kea, runs rndc and ping
+NoNewPrivileges=true
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
