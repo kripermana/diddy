@@ -389,10 +389,14 @@ patch_named_options
 chgrp -R bind /etc/bind/diddy && chmod -R g+rX /etc/bind/diddy
 named-checkconf && (systemctl reload named 2>/dev/null || systemctl restart named)
 
-echo "[6/7] Backup config Kea bawaan"
+echo "[6/7] Kea: backup config bawaan, permission, drop-in systemd"
 if [ -f /etc/kea/kea-dhcp4.conf ] && [ ! -f /etc/kea/kea-dhcp4.conf.orig ]; then
   cp -a /etc/kea/kea-dhcp4.conf /etc/kea/kea-dhcp4.conf.orig
 fi
+. "$SRC/deploy/kea-setup.sh"
+KEA_SVC="$(getv dhcp_service || true)"; KEA_SVC="${KEA_SVC:-kea-dhcp4-server}"
+kea_perms "$KEA_SVC"
+kea_dropin "$KEA_SVC"
 
 echo "[7/7] Service systemd"
 install -m 0644 "$SRC/deploy/diddy.service" /etc/systemd/system/diddy.service

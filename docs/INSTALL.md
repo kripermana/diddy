@@ -1,6 +1,6 @@
 # Diddy: Prasyarat, Instalasi, dan Troubleshooting
 
-Dokumen ini untuk Diddy 2.2.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
+Dokumen ini untuk Diddy 2.2.3 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
 
 ---
 
@@ -172,7 +172,7 @@ Catatan performa: Kea menulis lease ke database setiap kali ada request DHCP. Ka
 4. Inisialisasi skema lease Kea (`kea-admin db-init mysql`).
 5. Copy aplikasi ke `/opt/diddy` dan membuat Python venv.
 6. Menambahkan `include "/etc/bind/diddy/named.conf.diddy";` ke `/etc/bind/named.conf.local`.
-7. Backup config Kea bawaan ke `/etc/kea/kea-dhcp4.conf.orig`, lalu memasang service systemd.
+7. Backup config Kea bawaan ke `/etc/kea/kea-dhcp4.conf.orig`, mengatur `/etc/kea` menjadi `root:<group service Kea>` 0750 dan `kea-dhcp4.conf*` 0640, memasang drop-in systemd `/etc/systemd/system/kea-dhcp4-server.service.d/diddy.conf` (tunggu jaringan, start ulang bila gagal), lalu memasang service systemd.
 
 **Log instalasi:** semua output dicatat ke `/var/log/diddy-install.log` (mode 0600, ditambahkan tiap sesi, bukan ditimpa). Kalau instalasi berhenti, path log dan perintah untuk melihatnya ditampilkan di baris terakhir. Ganti lokasi dengan `LOGFILE=/path/lain.log`.
 
@@ -424,6 +424,8 @@ Kalau validasi gagal, deploy berhenti dan **tidak ada** file BIND/Kea yang diuba
 | `has no address records (A or AAAA)` pada MX/SRV | Target belum punya A record | Warning saja. Tambahkan A record target agar layanannya berfungsi |
 | `check kea-dhcp4.conf` gagal | Config Kea tidak valid | Baca pesan Kea. Biasanya interface di `dhcp_interfaces` tidak ada (`ip -br link`) |
 | `Unable to open file /tmp/...` saat cek Kea | AppArmor hanya mengizinkan `kea-dhcp4` membaca `/etc/kea/**` | Sudah diperbaiki sejak 1.3.7: file staging ditaruh di `/etc/kea/` dan `/etc/bind/diddy/.staging`. Kalau masih muncul, cek `sudo dmesg \| grep -i apparmor \| grep kea` |
+| `Unable to open file /etc/kea/.diddy-staging.conf`, dmesg: `apparmor="DENIED" ... capname="dac_read_search"` | `/etc/kea` bukan milik root (mis. `_kea:_kea` 0750). `kea-dhcp4 -t` dijalankan root, dan AppArmor tidak memberinya izin menembus permission | `sudo chown root:_kea /etc/kea /etc/kea/kea-dhcp4.conf && sudo chmod 0750 /etc/kea && sudo chmod 0640 /etc/kea/kea-dhcp4.conf`, atau jalankan `./upgrade.sh` 2.2.3 ke atas yang mengaturnya otomatis |
+| Kea mati setelah reboot, log: `Unable to open database: Can't connect to server` | Database lease MySQL belum terjangkau saat Kea start; Kea tidak mengulang koneksi saat startup | Pastikan MySQL terjangkau, lalu `sudo systemctl restart kea-dhcp4-server`. Drop-in dari `install.sh`/`upgrade.sh` 2.2.3 ke atas membuat Kea menunggu jaringan dan mencoba lagi tiap 10 detik |
 | `permission denied` saat menulis file | Diddy tidak jalan sebagai root | Pastikan unit systemd tidak diubah ke user lain |
 
 Banner kuning "pending changes" hanya hilang setelah deploy sukses tanpa error.

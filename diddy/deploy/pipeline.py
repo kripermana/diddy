@@ -15,6 +15,26 @@ from ..dns.resolver import dns_settings, render_dnsdist, render_options
 from ..dns.zones import render_named_conf, render_zone
 
 
+def root_can_enter(st):
+    """Apakah root bisa masuk ke direktori ini lewat bit permission biasa, tanpa capability dac_read_search.
+
+    Profil AppArmor kea-dhcp4 tidak memberi capability itu, jadi `kea-dhcp4 -t` yang dijalankan root tetap
+    ditolak bila root bukan owner/group direktori dan bit 'others' tidak mengizinkan.
+    """
+    bits = st.st_mode >> 6 if st.st_uid == 0 else st.st_mode >> 3 if st.st_gid == 0 else st.st_mode
+    return bool(bits & 0o1)
+
+
+def kea_open_hint(d, st):
+    """Saran untuk error 'Unable to open file' dari `kea-dhcp4 -t` pada file staging di direktori `d`."""
+    if not root_can_enter(st):
+        return (f"(Penyebab: {d} dimiliki uid {st.st_uid}, gid {st.st_gid}, mode {st.st_mode & 0o777:o}. "
+                "kea-dhcp4 dijalankan sebagai root, dan AppArmor melarangnya menembus permission. "
+                f"Perbaiki: sudo chown root:_kea {d} && sudo chmod 0750 {d}, atau jalankan ./upgrade.sh)")
+    return ("(Permission direktori sudah benar. Di Ubuntu/Debian cek AppArmor: "
+            "sudo dmesg | grep -i apparmor | grep kea)")
+
+
 def build():
     zs = q("SELECT * FROM zones ORDER BY name")
     dynmap = dynamic_records(zs)
@@ -65,8 +85,8 @@ def run_deploy():
         if kea_bin:
             kok, kout = run([kea_bin, "-t", kea_stage])
             if not kok and "Unable to open file" in kout:
-                kout += (f"\n(file {kea_stage} ada dan bisa dibaca root; kalau pesan ini muncul di Ubuntu/Debian,"
-                         " cek AppArmor: sudo dmesg | grep -i apparmor | grep kea)")
+                kdir = os.path.dirname(kea_stage) or "."
+                kout += "\n" + kea_open_hint(kdir, os.stat(kdir))
             step("check kea-dhcp4.conf", kok, kout)
         if dd is not None:
             os.makedirs(os.path.dirname(C["dnsdist_conf"]) or ".", exist_ok=True)

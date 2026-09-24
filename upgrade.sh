@@ -95,6 +95,15 @@ fi
 save /etc/bind/named.conf.local named.conf.local
 save /etc/bind/named.conf.options named.conf.options
 save /etc/kea/kea-dhcp4.conf kea-dhcp4.conf
+# owner/mode /etc/kea dan drop-in systemd Kea, supaya rollback bisa mengembalikannya persis
+. "$SRC/deploy/kea-setup.sh"
+KEA_SVC="$(getv dhcp_service || true)"; KEA_SVC="${KEA_SVC:-kea-dhcp4-server}"
+KEA_DROPIN="$(kea_dropin_path "$KEA_SVC")"
+if [ -d "$KEA_DIR" ]; then
+  (cd "$KEA_DIR" && stat -c '%u:%g %a %n' . kea-dhcp4.conf* 2>/dev/null) > "$BACKUP/kea-perms" || true
+fi
+save "$KEA_DROPIN" kea-dropin.conf
+[ -d "$(dirname "$KEA_DROPIN")" ] && touch "$BACKUP/kea-dropin-dir-existed"
 if [ "${SKIP_DB_DUMP:-0}" != "1" ] && [ "$(getv db_backend)" = "mysql" ] && command -v mysqldump >/dev/null; then
   if MYSQL_PWD="$(getv mysql_password)" mysqldump --single-transaction --no-tablespaces \
       -h "$(getv mysql_host)" -P "$(getv mysql_port)" -u "$(getv mysql_user)" \
@@ -119,6 +128,23 @@ health_check() {   # API hidup bila menjawab 200/401
   return 1
 }
 
+restore_kea() {   # owner/mode /etc/kea dan drop-in systemd Kea seperti sebelum upgrade
+  local own mode name
+  if [ -f "$BACKUP/kea-perms" ]; then
+    while read -r own mode name; do
+      [ -e "$KEA_DIR/$name" ] || continue
+      chown "$own" "$KEA_DIR/$name" || true
+      chmod "$mode" "$KEA_DIR/$name" || true
+    done < "$BACKUP/kea-perms"
+  fi
+  if [ -f "$BACKUP/kea-dropin.conf" ]; then
+    install -m 0644 "$BACKUP/kea-dropin.conf" "$KEA_DROPIN"
+  else
+    rm -f "$KEA_DROPIN"
+    [ -f "$BACKUP/kea-dropin-dir-existed" ] || rmdir "$(dirname "$KEA_DROPIN")" 2>/dev/null || true
+  fi
+}
+
 restore_legacy() {   # kembalikan LiteDDI persis seperti sebelum migrasi
   systemctl stop diddy >/dev/null 2>&1 || true
   systemctl disable diddy >/dev/null 2>&1 || true
@@ -136,6 +162,7 @@ restore_legacy() {   # kembalikan LiteDDI persis seperti sebelum migrasi
   [ -f "$BACKUP/named.conf.options" ] && cp -a "$BACKUP/named.conf.options" /etc/bind/named.conf.options
   [ -f "$BACKUP/liteddi.service" ] && install -m 0644 "$BACKUP/liteddi.service" /etc/systemd/system/liteddi.service
   [ -f "$BACKUP/liteddi-cmd" ] && install -m 0755 "$BACKUP/liteddi-cmd" /usr/local/bin/liteddi
+  restore_kea
   systemctl daemon-reload || true
   systemctl enable liteddi >/dev/null 2>&1 || true
   systemctl restart liteddi || true
@@ -147,6 +174,7 @@ restore_upgrade() {  # kembalikan paket Diddy versi sebelumnya
   [ -f "$BACKUP/diddy.service" ] && install -m 0644 "$BACKUP/diddy.service" /etc/systemd/system/diddy.service
   [ -f "$BACKUP/diddy-cmd" ] && install -m 0755 "$BACKUP/diddy-cmd" /usr/local/bin/diddy
   [ -f "$BACKUP/named.conf.options" ] && cp -a "$BACKUP/named.conf.options" /etc/bind/named.conf.options
+  restore_kea
   systemctl daemon-reload || true
   systemctl restart diddy || true
 }
@@ -248,11 +276,13 @@ print("      include resolver ditambahkan ke %s (backup .diddy.bak)" % p)
 PY
 }
 
-echo "[4/8] Include resolver BIND dan dnsdist"
+echo "[4/8] Include resolver BIND, permission Kea, dan dnsdist"
 install -d /etc/bind/diddy
 patch_named_options
 chgrp -R bind /etc/bind/diddy 2>/dev/null || true
 chmod -R g+rX /etc/bind/diddy 2>/dev/null || true
+kea_perms "$KEA_SVC" || rollback "gagal mengatur permission $KEA_DIR"
+kea_dropin "$KEA_SVC" || rollback "gagal memasang drop-in systemd $KEA_DROPIN"
 if ! command -v dnsdist >/dev/null && [ "${SKIP_DNSDIST:-0}" != "1" ]; then
   echo "      memasang dnsdist (untuk upstream DoT/DoH, service tetap mati sampai dipakai)"
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dnsdist >/dev/null 2>&1 && \

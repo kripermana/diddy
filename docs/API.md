@@ -1,6 +1,6 @@
 # Diddy REST API
 
-Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.2.0.
+Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.2.3.
 
 ## Autentikasi
 

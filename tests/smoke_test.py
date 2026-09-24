@@ -239,6 +239,18 @@ check("corp.local" in LAST_DDNS["skipped"] and "evil" in open(zf).read(), "DDNS 
 call("post", "/drift/repair")
 check(call("get", "/drift")["drifted"] == 0 and "evil" not in open(zf).read(), "drift dipulihkan")
 
+# ------------------------------------------------------------------ permission /etc/kea vs AppArmor
+from types import SimpleNamespace as _NS  # noqa: E402
+from diddy.deploy.pipeline import kea_open_hint, root_can_enter  # noqa: E402
+_kea = _NS(st_uid=111, st_gid=113, st_mode=0o40750)          # _kea:_kea 0750, kasus server dev 2.2.x
+check(not root_can_enter(_kea) and "chown root:_kea /etc/kea" in kea_open_hint("/etc/kea", _kea),
+      "Kea: /etc/kea milik _kea 0750 dikenali, saran perbaikan tepat")
+check(root_can_enter(_NS(st_uid=0, st_gid=113, st_mode=0o40750)), "Kea: root:_kea 0750 bisa dimasuki root")
+check(root_can_enter(_NS(st_uid=111, st_gid=0, st_mode=0o40750)), "Kea: group root dengan g+x bisa dimasuki root")
+check(root_can_enter(_NS(st_uid=111, st_gid=113, st_mode=0o40755)), "Kea: others x bisa dimasuki root")
+check("AppArmor" in kea_open_hint("/etc/kea", _NS(st_uid=0, st_gid=0, st_mode=0o40755)),
+      "Kea: permission benar -> saran cek AppArmor")
+
 # ------------------------------------------------------------------ health, system, export
 hl = call("get", "/health")
 check(any(i["name"] == "Configuration drift" for i in hl["items"]), "health memuat status drift")

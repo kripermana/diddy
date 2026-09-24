@@ -2,6 +2,14 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.2.3]
+### Diperbaiki
+- Deploy gagal di `check kea-dhcp4.conf` dengan "Unable to open file" setelah reboot, bila `/etc/kea` dimiliki `_kea:_kea` 0750: `kea-dhcp4 -t` berjalan sebagai root, dan profil AppArmor-nya tidak memberi `dac_read_search`/`dac_override`. `install.sh` dan `upgrade.sh` kini mengatur `/etc/kea` menjadi `root:<group service Kea>` 0750 dan `kea-dhcp4.conf*` 0640. Config yang berisi password database lease juga tidak lagi bisa dibaca semua user.
+- Kea tidak start saat boot bila database lease MySQL belum terjangkau (Kea tidak mengulang koneksi saat startup). `install.sh` dan `upgrade.sh` memasang drop-in systemd `kea-dhcp4-server.service.d/diddy.conf`: tunggu `network-online.target`, `Restart=on-failure`, `RestartSec=10`.
+### Diubah
+- Pesan error deploy untuk "Unable to open file" kini menyebut owner/mode direktori yang salah beserta perintah perbaikannya.
+- `upgrade.sh` mencatat owner/mode `/etc/kea` dan drop-in Kea saat backup, dan mengembalikannya persis bila rollback. `uninstall.sh` menghapus drop-in tersebut.
+
 ## [2.2.0]
 ### Ditambahkan
 - Halaman **DNS cache** (DNS > Resolver > DNS cache) untuk mengelola cache resolver BIND:

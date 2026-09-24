@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Diddy 2.2.0 API",
+    "name": "Diddy 2.2.3 API",
     "description": "REST API Diddy: IPAM, DNS, DHCP, resolver, deploy.\n\nIsi variabel collection `baseUrl`, `username`, `password`, lalu jalankan folder 0 sampai 9 dengan Collection Runner. Objek uji dibuat di network 198.18.X.0/24 dan zona apitest-X.invalid, lalu dihapus lagi di folder 9.\n\n(c) 2026 kripermana, MIT License.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
