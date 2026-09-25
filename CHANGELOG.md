@@ -13,7 +13,7 @@ Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama Lit
 - Dashboard: susun ulang widget dengan drag-and-drop tidak jalan di Firefox (tanpa `dataTransfer.setData`), widget yang datanya belum dimuat tidak bisa di-drag, dan garis penanda drop berkedip/tertinggal.
 - Dashboard: refresh otomatis tiap menit dilewati saat tab browser tidak terlihat.
 - Top bar terpotong (tombol Log out keluar layar) pada lebar layar sekitar 760 sampai 1250 px.
-- CI GitHub Actions selalu gagal di smoke test deploy: runner hanya memasang `bind9-utils`, sehingga `/var/cache/bind` yang dirujuk validasi options BIND tidak ada. Workflow kini membuat direktori itu.
+- CI GitHub Actions selalu gagal di smoke test deploy: runner hanya memasang `bind9-utils`, sehingga `/var/cache/bind` yang dirujuk validasi options BIND tidak ada. Workflow kini membuat direktori itu. Selain itu profil AppArmor `kea-dhcp4` di runner menolak membaca config staging smoke test di `/tmp`; workflow menambahkan izin baca khusus `/tmp/diddy-test-*` lewat `local/usr.sbin.kea-dhcp4`.
 
 ## [2.2.3]
 ### Diperbaiki
