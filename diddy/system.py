@@ -10,10 +10,11 @@ import shutil
 import socket
 import time
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 
+from .audit import audit_count, audit_entry, audit_facets, audit_list
 from .auth import auth
-from .config import C, CONF_PATH, DB, DRY, KEA_MYSQL, MYSQL, PFX
+from .config import C, CONF_PATH, DB, DRY, FILE, KEA_MYSQL, MYSQL, PFX, describe_conf
 from .core.errors import ApiError
 from .core.runtime import LAST_DDNS, STARTED
 from .core.util import clean, human_time, now, run
@@ -235,6 +236,8 @@ def api_export(kind):
                  "JOIN zones z ON z.id=r.zone_id ORDER BY z.name, r.name")
     elif kind == "leases":
         rows = read_leases()
+    elif kind == "audit":
+        rows = audit_list(request.args, 100000)
     else:
         raise ApiError("Unknown export type", 404)
     buf = io.StringIO()
@@ -249,5 +252,39 @@ def api_export(kind):
 @bp.get("/api/v1/audit")
 @auth
 def api_audit():
+    """Audit log terbaru. Filter opsional: q, user, action, since, until; halaman lewat limit dan offset."""
     lim = max(1, min(2000, request.args.get("limit", 300, type=int)))
-    return jsonify(q("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (lim,)))
+    off = max(0, request.args.get("offset", 0, type=int))
+    return jsonify(audit_list(request.args, lim, off))
+
+
+@bp.get("/api/v1/audit/count")
+@auth
+def api_audit_count():
+    return jsonify(total=audit_count(request.args))
+
+
+@bp.get("/api/v1/audit/facets")
+@auth
+def api_audit_facets():
+    return jsonify(audit_facets())
+
+
+@bp.get("/api/v1/audit/<int:aid>")
+@auth
+def api_audit_entry(aid):
+    return jsonify(audit_entry(aid))
+
+
+@bp.get("/api/v1/system/config")
+@auth
+def api_system_config():
+    """Variabel config Diddy (read-only). Hanya admin; password tidak pernah dikirim."""
+    if g.user["role"] != "admin":
+        raise ApiError("Only administrators can view the system configuration", 403)
+    return jsonify(config_file=CONF_PATH, config_exists=os.path.exists(CONF_PATH), section=FILE["section"],
+                   legacy_section=FILE["section"] == "liteddi", unknown=FILE["unknown"], items=describe_conf(),
+                   derived={"database": (f"MySQL {C['mysql_host']}:{C['mysql_port']}/{C['mysql_database']}"
+                                         if MYSQL else f"SQLite {DB}"),
+                            "table_prefix": PFX or "(none)", "dry_run": DRY,
+                            "kea_lease_storage": "MySQL" if KEA_MYSQL else "memfile"})

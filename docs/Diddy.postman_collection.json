@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Diddy 2.2.3 API",
+    "name": "Diddy 2.3.0 API",
     "description": "REST API Diddy: IPAM, DNS, DHCP, resolver, deploy.\n\nIsi variabel collection `baseUrl`, `username`, `password`, lalu jalankan folder 0 sampai 9 dengan Collection Runner. Objek uji dibuat di network 198.18.X.0/24 dan zona apitest-X.invalid, lalu dihapus lagi di folder 9.\n\n(c) 2026 kripermana, MIT License.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -303,6 +303,149 @@
               ]
             },
             "description": ""
+          }
+        },
+        {
+          "name": "Audit log terfilter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /audit -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit?action=login&limit=20&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "login"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Filter opsional: q (teks), user, action, since dan until (YYYY-MM-DD). Halaman lewat limit dan offset."
+          }
+        },
+        {
+          "name": "Jumlah entri audit terfilter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /audit/count -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit/count?action=login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "audit",
+                "count"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "login"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Pilihan filter audit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /audit/facets -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit/facets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "audit",
+                "facets"
+              ]
+            },
+            "description": "Daftar user dan action yang pernah tercatat."
+          }
+        },
+        {
+          "name": "Konfigurasi sistem",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /system/config -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/system/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "system",
+                "config"
+              ]
+            },
+            "description": "Semua variabel diddy.conf dengan nilai efektif, default, dan asalnya. Hanya admin; password tidak dikirim."
           }
         },
         {
@@ -2087,6 +2230,43 @@
               ]
             },
             "description": ""
+          }
+        },
+        {
+          "name": "Export audit log CSV",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /export/audit.csv -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/export/audit.csv?action=login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "export",
+                "audit.csv"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "login"
+                }
+              ]
+            },
+            "description": "Menerima filter yang sama dengan GET /audit."
           }
         }
       ],

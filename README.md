@@ -30,7 +30,7 @@ Minimal 1 vCPU / 1 GB RAM (MySQL ikut di server yang sama): cocok untuk VM kecil
 | Discovery | Ping sweep, IP hidup tanpa objek tampil sebagai "unmanaged" |
 | Restart Services banner | Banner perubahan tertunda, lalu Deploy: validasi `named-checkzone` dan `kea-dhcp4 -t` dulu, baru reload |
 | WAPI | REST API `/api/v1` dengan HTTP Basic auth |
-| Audit Log, Admin | Semua perubahan tercatat; role admin dan read-only |
+| Menu System | System information, konfigurasi (`diddy.conf` read-only, password disembunyikan), user dengan login terakhir, dan audit log dengan pencarian, filter, detail lengkap, serta export CSV |
 | Deteksi drift | Diddy menyimpan salinan tiap file yang ditulisnya, membandingkan berkala dengan file yang dipakai service, mencatat ke audit log, dan bisa mengembalikannya otomatis |
 | Grid status / health | Halaman Health (service, database, config BIND, disk, status deploy, DDNS) dan System information |
 | Tampilan | 5 tema: Light, Dark, Dracula, Nord, Solarized; pilihan tersimpan di browser |
@@ -115,7 +115,7 @@ curl -u admin:PASS http://SERVER:8080/api/v1/networks/1/next_available?num=5
 curl -u admin:PASS -X POST http://SERVER:8080/api/v1/deploy
 ```
 
-Endpoint utama: `networks`, `networks/<id>/ipmap`, `networks/<id>/next_available`, `networks/<id>/discover`, `ranges`, `hosts`, `import/hosts`, `zones`, `zones/<id>/records`, `records`, `leases`, `search?q=`, `deploy/preview`, `deploy`, `audit`, `users`, `export/<networks|hosts|records|leases>.csv`.
+Endpoint utama: `networks`, `networks/<id>/ipmap`, `networks/<id>/next_available`, `networks/<id>/discover`, `ranges`, `hosts`, `import/hosts`, `zones`, `zones/<id>/records`, `records`, `leases`, `search?q=`, `deploy/preview`, `deploy`, `audit`, `audit/<id>`, `system/config`, `users`, `export/<networks|hosts|records|leases|audit>.csv`.
 
 ## File yang dikelola
 

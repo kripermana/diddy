@@ -2,7 +2,7 @@
 
 *Your DDI Friend*
 
-(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.2.4.
+(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.3.0.
 
 Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4), dan dnsdist (upstream DoT/DoH) dari satu database MySQL atau SQLite. Database adalah sumber kebenaran; file config service selalu dihasilkan dari database, divalidasi, lalu baru ditulis.
 
@@ -14,7 +14,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `web.py` | Flask app factory: registrasi blueprint, error handler, header keamanan, UI statis |
 | `wsgi.py` | Objek `app` untuk server WSGI lain (`waitress-serve diddy.wsgi:app`) |
 | `worker.py` | Thread latar: refresh DDNS dan pemeriksaan drift, jadwal masing-masing |
-| `config.py` | Nilai default dan pembacaan `/etc/diddy/diddy.conf` |
+| `config.py` | Nilai default dan pembacaan `/etc/diddy/diddy.conf`, keterangan tiap variabel untuk halaman System > Configuration |
 | `version.py` | `VERSION`, `AUTHOR` |
 | `core/errors.py` | `ApiError`, diterjemahkan jadi respons JSON |
 | `core/util.py` | Validasi input (FQDN, IP, MAC), `run()` untuk perintah sistem, util waktu |
@@ -24,7 +24,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `db/tables.py` | Daftar tabel dan prefix tabel |
 | `db/schema.py` | DDL, penambahan kolom otomatis, inisialisasi, migrasi SQLite ke MySQL |
 | `auth.py` | Login sesi dan HTTP Basic, decorator `@auth`, role admin/read-only |
-| `audit.py` | `audit()` dan `changed()` (audit log + tanda perubahan tertunda) |
+| `audit.py` | `audit()` dan `changed()` (audit log + tanda perubahan tertunda), query audit terfilter, detail entri, login terakhir |
 | `users.py` | Endpoint manajemen user |
 | `ipam/networks.py` | Network bertingkat, utilisasi, IP bebas, reverse zone otomatis |
 | `ipam/routes.py` | Endpoint network, IP map, next available, ping sweep |
@@ -43,7 +43,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `deploy/routes.py` | Endpoint deploy, preview, drift |
 | `metrics.py` | Collector statistik BIND/Kea per menit, pengolahan counter menjadi grafik |
 | `dashboards.py` | Endpoint statistik dan layout dashboard per user |
-| `system.py` | Dashboard, health, system information, pencarian, export, audit log |
+| `system.py` | Dashboard, health, system information, konfigurasi sistem, pencarian, export, audit log |
 | `static/` | Web UI (HTML, CSS, JavaScript tanpa build step); `charts.js` berisi grafik SVG tanpa dependency |
 
 ## Lapisan dan aturan import

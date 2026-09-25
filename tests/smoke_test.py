@@ -259,6 +259,32 @@ r = c.get("/api/v1/export/hosts.csv")
 check(r.status_code == 200 and "fqdn" in r.data.decode(), "export CSV host")
 check(c.get("/").status_code == 200, "halaman UI tersaji")
 
+# ------------------------------------------------------------------ menu System: audit log, konfigurasi, user
+al = call("get", "/audit?action=create&limit=5")
+check(al and all(a["action"] == "create" for a in al), "audit: filter action")
+check(len(call("get", "/audit?action=create&limit=2&offset=2")) == 2 and
+      call("get", "/audit?action=create&limit=2&offset=2")[0]["id"] < al[1]["id"], "audit: halaman lewat offset")
+check(all("corp.local" in (a["object"] + a["detail"]).lower() for a in call("get", "/audit?q=CORP.local")),
+      "audit: pencarian teks tidak peka huruf besar")
+check(call("get", "/audit/count?action=create")["total"] >= 5, "audit: jumlah entri terfilter")
+fc = call("get", "/audit/facets")
+check("admin" in fc["users"] and "login" in fc["actions"], "audit: daftar user dan action untuk filter")
+ent = call("get", f"/audit/{al[0]['id']}")
+check(ent["id"] == al[0]["id"] and (ent["detail_json"] is not None or not ent["detail"].startswith("{")),
+      "audit: detail lengkap, JSON diurai")
+call("get", "/audit/999999999", expect=404, label="audit: entri tidak ada -> 404")
+call("get", "/audit?since=25-09-2026", expect=400, label="audit: format tanggal salah ditolak")
+check(call("get", "/audit?since=2999-01-01") == [], "audit: filter tanggal")
+r = c.get("/api/v1/export/audit.csv?action=login")
+check(r.status_code == 200 and r.data.decode().startswith("id,ts,username,action"), "export CSV audit")
+cfg = call("get", "/system/config")
+keys = {i["key"]: i for i in cfg["items"]}
+check(keys["dry_run"]["source"] == "file" and keys["dry_run"]["value"] == "true", "config: nilai dari file")
+check(keys["port"]["source"] == "default" and keys["port"]["default"] == "8080", "config: nilai default")
+check(all(i["value"] in ("(set)", "(empty)") for i in cfg["items"] if i["secret"]) and keys["mysql_password"]["secret"],
+      "config: password tidak pernah dikirim")
+check(any(u["username"] == "admin" and u["last_login"] for u in call("get", "/users")), "user: waktu login terakhir")
+
 # ------------------------------------------------------------------ HTTP Basic + cache verifikasi
 import base64  # noqa: E402
 
@@ -272,6 +298,10 @@ u = call("post", "/users", {"username": "apiuser", "password": "ApiPass111", "ro
 check(bc.get("/api/v1/me", headers=basic("apiuser", "ApiPass111")).status_code == 200, "Basic auth benar diterima")
 check(bc.get("/api/v1/me", headers=basic("apiuser", "ApiPass111")).status_code == 200, "Basic auth dari cache")
 check(bc.get("/api/v1/me", headers=basic("apiuser", "salah")).status_code == 401, "Basic auth salah ditolak")
+check(bc.get("/api/v1/system/config", headers=basic("apiuser", "ApiPass111")).status_code == 403,
+      "config: user read-only ditolak")
+check([x["username"] for x in bc.get("/api/v1/users", headers=basic("apiuser", "ApiPass111")).get_json()] == ["apiuser"],
+      "user read-only hanya melihat dirinya")
 call("put", f"/users/{u['id']}", {"password": "ApiPass222"})
 check(bc.get("/api/v1/me", headers=basic("apiuser", "ApiPass111")).status_code == 401,
       "password lama langsung ditolak setelah diganti (cache tidak basi)")

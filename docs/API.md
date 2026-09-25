@@ -1,6 +1,6 @@
 # Diddy REST API
 
-Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.2.4.
+Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.3.0.
 
 ## Autentikasi
 
@@ -40,9 +40,13 @@ Semua perubahan data hanya tersimpan di database dan menyalakan tanda *pending*.
 | POST | `/login`, `/logout` | Sesi browser (klien API tidak perlu) |
 | GET | `/health` | Status service, database, drift, DDNS, disk |
 | GET | `/system` | Versi software, OS, path config |
+| GET | `/system/config` | Semua variabel `diddy.conf`: nilai efektif, default, asal (file/default), keterangan. Hanya admin; password hanya ditandai `(set)`/`(empty)` |
 | GET | `/dashboard` | Ringkasan dan utilisasi network |
 | GET | `/search?q=` | Cari IP, nama, MAC, network |
-| GET | `/audit?limit=` | Audit log |
+| GET | `/audit?limit=&offset=&q=&user=&action=&since=&until=` | Audit log, terbaru dulu. Semua filter opsional; `since`/`until` berformat `YYYY-MM-DD` |
+| GET | `/audit/count?...` | Jumlah entri yang cocok dengan filter yang sama |
+| GET | `/audit/facets` | Daftar user dan action yang pernah tercatat, serta total entri |
+| GET | `/audit/{id}` | Satu entri lengkap; detail berformat JSON ikut dikirim sebagai objek di `detail_json` |
 | GET | `/metrics/dns?range=1h\|6h\|24h\|7d` | Statistik DNS: query/detik, request per jam, total, rcode, qtype, utilisasi |
 | GET | `/metrics/dhcp?range=` | Statistik DHCP: lease aktif, pool per network, paket Kea |
 | GET, PUT, DELETE | `/dashboard/layout?board=overview\|dns\|dhcp` | Layout widget milik user yang login (read-only juga boleh menyimpan) |
@@ -74,9 +78,9 @@ Semua perubahan data hanya tersimpan di database dan menyalakan tanda *pending*.
 | POST | `/deploy` | Validasi dan terapkan ke service |
 | GET | `/drift` | File service yang berubah di luar Diddy |
 | POST | `/drift/repair` | Kembalikan file yang drift |
-| GET, POST | `/users` | Daftar / buat user |
+| GET, POST | `/users` | Daftar / buat user (dengan `last_login` dari audit log; user read-only hanya melihat dirinya) |
 | PUT, DELETE | `/users/{id}` | Ganti password atau role / hapus user |
-| GET | `/export/{networks,hosts,records,leases}.csv` | Export CSV |
+| GET | `/export/{networks,hosts,records,leases,audit}.csv` | Export CSV (`audit.csv` menerima filter yang sama dengan `/audit`) |
 
 ## Contoh
 

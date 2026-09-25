@@ -38,7 +38,7 @@ function bar(p) {
 function table(cols, rows, o = {}) {
   if (!rows.length) return `<div class="empty">${o.empty || 'Nothing here yet.'}</div>`;
   return `<table class="grid"><thead><tr>${cols.map(c => `<th>${c.label}</th>`).join('')}${o.actions ? '<th></th>' : ''}</tr></thead><tbody>${
-    rows.map(r => `<tr>${cols.map(c => `<td class="${c.cls || ''}">${c.fmt ? c.fmt(r[c.k], r) : esc(r[c.k])}</td>`).join('')}${o.actions ? `<td class="act">${o.actions(r)}</td>` : ''}</tr>`).join('')
+    rows.map(r => `<tr${o.rowAttr ? ' ' + o.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.cls || ''}">${c.fmt ? c.fmt(r[c.k], r) : esc(r[c.k])}</td>`).join('')}${o.actions ? `<td class="act">${o.actions(r)}</td>` : ''}</tr>`).join('')
   }</tbody></table>`;
 }
 function fieldHtml(f) {
@@ -136,7 +136,7 @@ const WIDGETS = {
         || '<div class="chart-empty">No networks yet.</div>';
     }
   },
-  activity: { title: 'Recent activity', src: ['dash'], flush: true, render: (D, b) => { b.innerHTML = auditTable(D.dash.recent.slice(0, 8)); } },
+  activity: { title: 'Recent activity', src: ['dash'], flush: true, render: (D, b) => { b.innerHTML = auditTable(D.dash.recent.slice(0, 8)) + '<div class="w-foot"><a href="#/system/audit">Open the audit log</a></div>'; } },
   dns_kpi: {
     title: 'DNS at a glance', src: ['dns'], render: (D, b) => {
       const t = D.dns.totals, rc = D.dns.rcodes, all = Object.values(rc).reduce((a, v) => a + v, 0);
@@ -370,8 +370,34 @@ function watchGrid() {
 }
 
 function auditTable(rows) {
-  return table([{ k: 'ts', label: 'Time', cls: 'mono' }, { k: 'username', label: 'User' }, { k: 'action', label: 'Action' }, { k: 'object', label: 'Object' },
-    { k: 'detail', label: 'Detail', fmt: v => `<span class="muted clip" title="${esc(v || '')}">${esc(String(v || ''))}</span>` }], rows, { empty: 'No activity yet.' });
+  return table([{ k: 'ts', label: 'Time', cls: 'mono' }, { k: 'username', label: 'User' }, { k: 'action', label: 'Action', fmt: v => `<span class="tag">${esc(v)}</span>` },
+    { k: 'object', label: 'Object', fmt: v => `<span class="clip audit-obj" title="${esc(v || '')}">${esc(v || '')}</span>` },
+    { k: 'detail', label: 'Detail', fmt: v => `<span class="muted clip" title="${esc(v || '')}">${esc(String(v || ''))}</span>` }], rows,
+  { empty: 'No activity yet.', rowAttr: r => `class="row-link" data-act="audit-detail" data-id="${r.id}" title="Show the full entry"`,
+    actions: r => `<button class="lnk" data-act="audit-detail" data-id="${r.id}">View</button>` });
+}
+/* Detail satu entri audit. Dipakai dari halaman mana pun (dashboard dan System > Audit log). */
+const GLOBAL_ACTS = { 'audit-detail': d => auditDetail(+d.id) };
+function detailValue(v) {
+  return v !== null && typeof v === 'object' ? `<pre class="code wrap">${esc(JSON.stringify(v, null, 2))}</pre>` : `<span class="mono">${esc(v === null ? 'null' : String(v))}</span>`;
+}
+async function auditDetail(id) {
+  const e = await api('GET', '/audit/' + id);
+  const j = e.detail_json, obj = j && typeof j === 'object' && !Array.isArray(j);
+  const raw = j ? JSON.stringify(j, null, 2) : (e.detail || '');
+  const m = modal(`<h3>Audit entry #${e.id}</h3>
+    <div class="kv audit-kv"><div><span>Time</span><b>${esc(e.ts)}</b></div><div><span>User</span><b>${esc(e.username)}</b></div>
+      <div><span>Action</span><b>${esc(e.action)}</b></div><div style="grid-column:1/-1"><span>Object</span><b>${esc(e.object)}</b></div></div>
+    <h4 class="audit-h">Detail</h4>
+    ${!raw ? '<div class="muted">No detail recorded.</div>' : obj ? `<table class="grid audit-fields"><tbody>${Object.entries(j).map(([k, v]) =>
+      `<tr><th class="mono">${esc(k)}</th><td>${detailValue(v)}</td></tr>`).join('')}</tbody></table>
+      <details class="audit-raw"><summary>Raw JSON</summary><pre class="code wrap">${esc(raw)}</pre></details>` : `<pre class="code wrap">${esc(raw)}</pre>`}
+    <div class="btns"><button type="button" class="btn" data-copy ${raw ? '' : 'disabled'}>Copy detail</button><button type="button" class="btn primary" data-close>Close</button></div>`, true);
+  m.querySelector('[data-close]').onclick = () => m.remove();
+  m.querySelector('[data-close]').focus();
+  m.querySelector('[data-copy]').onclick = async () => {
+    try { await navigator.clipboard.writeText(raw); toast('Detail copied'); } catch (err) { toast('Copy is not available in this browser', true); }
+  };
 }
 
 /* ---------------- IPAM */
@@ -774,10 +800,19 @@ async function vHealth() {
       `<div class="hrow"><span class="dot ${i.state === 'ok' ? 'on' : i.state === 'fail' ? 'off' : i.state === 'warn' ? 'warn' : ''}"></span><b>${esc(i.name)}</b><span class="detail">${esc(i.detail)}</span></div>`).join('')}</div></div>`);
   on('refresh', () => route());
 }
-async function vSystem() {
+/* ---------------- System: information, configuration, users, audit log */
+const SYS_TABS = [['', 'Information'], ['config', 'Configuration'], ['users', 'Users'], ['audit', 'Audit log']];
+function sysHead(tab, sub, tools = '') {
+  return head('System', sub, tools) + `<div class="tabs board-tabs">${SYS_TABS.filter(([k]) => k !== 'config' || isAdmin()).map(([k, l]) =>
+    `<a href="#/system${k ? '/' + k : ''}" class="${k === tab ? 'on' : ''}">${l}</a>`).join('')}</div>`;
+}
+async function vSystem(tab = '') {
+  if (tab === 'config') return vSysConfig();
+  if (tab === 'users') return vSysUsers();
+  if (tab === 'audit') return vSysAudit();
   const s = await api('GET', '/system');
   const row = (l, v) => `<div><span>${l}</span><b>${esc(v)}</b></div>`;
-  main(head('System information', `Diddy ${esc(s.diddy)} by ${esc(s.author)}`) +
+  main(sysHead('', `Diddy ${esc(s.diddy)} by ${esc(s.author)}`, `<a class="btn" href="#/health">Health</a>`) +
     `<div class="panel"><h2>Software</h2><div class="kv">
       ${row('Diddy version', s.diddy)}${row('Python', s.python)}${row('BIND', s.bind)}${row('Kea DHCPv4', s.kea)}
       ${row('Operating system', s.distribution)}${row('Kernel', s.os)}</div></div>
@@ -792,27 +827,101 @@ async function vSystem() {
      <div class="panel"><h2>About</h2><p style="margin:0 0 6px;font-size:17px"><b>${esc(s.name)}</b> &mdash; <em>${esc(s.slogan)}</em></p><p class="muted" style="margin:0">Version ${esc(s.version)}. DNS, DHCP and IPAM management for Linux, built on BIND9 and ISC Kea.<br>${esc(s.copyright)}</p></div>`);
 }
 
-/* ---------------- audit, admin, search */
-async function vAudit() {
-  main(head('Audit log', 'Every change, login and deploy') + `<div class="panel flush">${auditTable(await api('GET', '/audit?limit=500'))}</div>`);
+const CFG_VIEW = { q: '', changed: false };
+async function vSysConfig() {
+  if (!isAdmin()) { main(sysHead('config', 'Configuration') + '<div class="panel empty">Only administrators can view the system configuration.</div>'); return; }
+  const c = await api('GET', '/system/config');
+  main(sysHead('config', 'Settings read from the Diddy configuration file') +
+    `<div class="panel"><h2>Configuration file</h2><div class="kv">
+      <div><span>File</span><b>${esc(c.config_file)}</b></div>
+      <div><span>Section</span><b>${c.section ? `[${esc(c.section)}]` : '(file not found, defaults in use)'}</b></div>
+      <div><span>Database</span><b>${esc(c.derived.database)}</b></div><div><span>Table prefix</span><b>${esc(c.derived.table_prefix)}</b></div>
+      <div><span>Kea lease storage</span><b>${esc(c.derived.kea_lease_storage)}</b></div><div><span>Dry run</span><b>${c.derived.dry_run ? 'on' : 'off'}</b></div></div>
+      <p class="muted cfg-note">Read only. To change a value, edit the file on the server and restart Diddy (<span class="mono">systemctl restart diddy</span>). Passwords are never shown.</p>
+      ${c.legacy_section ? '<p class="cfg-warn">This file still uses the LiteDDI section <span class="mono">[liteddi]</span>. It keeps working; rename it to <span class="mono">[diddy]</span> when convenient.</p>' : ''}
+      ${c.unknown.length ? `<p class="cfg-warn">Unknown setting${c.unknown.length > 1 ? 's' : ''} ignored: <span class="mono">${esc(c.unknown.join(', '))}</span>. Check for typos.</p>` : ''}</div>
+    <div class="cfg-tools"><input class="filter" id="cfg-q" type="search" placeholder="Filter variables" value="${esc(CFG_VIEW.q)}" aria-label="Filter variables">
+      <label class="chk"><input type="checkbox" id="cfg-changed" ${CFG_VIEW.changed ? 'checked' : ''}> Only values changed from the default</label>
+      <span class="muted" id="cfg-n"></span></div>
+    <div id="cfg-list"></div>`);
+  const draw = () => {
+    const t = CFG_VIEW.q.toLowerCase();
+    const items = c.items.filter(i => (!CFG_VIEW.changed || i.changed) && (!t || (i.key + ' ' + i.description + ' ' + i.group + ' ' + (i.secret ? '' : i.value)).toLowerCase().includes(t)));
+    const groups = [...new Set(items.map(i => i.group))];
+    $('#cfg-n').textContent = `${items.length} of ${c.items.length} variables`;
+    $('#cfg-list').innerHTML = groups.map(gname => `<div class="panel flush"><div class="cfg-group"><h2>${esc(gname)}</h2></div>${table([
+      { k: 'key', label: 'Variable', fmt: (v, i) => `<span class="mono">${esc(v)}</span><small class="cfg-desc">${esc(i.description)}</small>` },
+      { k: 'value', label: 'Value', fmt: (v, i) => `<span class="mono cfg-val${i.changed ? ' cfg-changed' : ''}${i.secret ? ' muted' : ''}">${esc(v === '' ? '(empty)' : v)}</span>` },
+      { k: 'default', label: 'Default', fmt: v => `<span class="mono muted cfg-val">${esc(v === '' ? '(empty)' : v)}</span>` },
+      { k: 'source', label: 'Source', fmt: v => v === 'file' ? '<span class="tag on">file</span>' : '<span class="tag">default</span>' }],
+      items.filter(i => i.group === gname))}</div>`).join('') || '<div class="panel empty">No variable matches the filter.</div>';
+  };
+  draw();
+  $('#cfg-q').oninput = e => { CFG_VIEW.q = e.target.value; draw(); };
+  $('#cfg-changed').onchange = e => { CFG_VIEW.changed = e.target.checked; draw(); };
 }
-async function vAdmin() {
+
+async function vSysUsers() {
   const users = await api('GET', '/users');
-  main(head('Admin', `Diddy ${esc(ME.version)}`, adm(`<button class="btn primary" data-act="add">Add user</button>`)) +
-    `<div class="panel flush"><div style="padding:16px 16px 0"><h2>Users</h2></div>${table([{ k: 'username', label: 'Username' },
-      { k: 'role', label: 'Role', fmt: v => v === 'admin' ? '<span class="tag on">Admin</span>' : '<span class="tag">Read only</span>' }, { k: 'created', label: 'Created', cls: 'mono' }], users,
-      { actions: u => `<button class="lnk" data-act="pw" data-id="${u.id}">Change password</button>` + (u.id !== ME.user.id ? adm(`<button class="lnk danger" data-act="del" data-id="${u.id}">Delete</button>`) : '') })}</div>
+  const role = v => v === 'admin' ? '<span class="tag on">Admin</span>' : '<span class="tag">Read only</span>';
+  main(sysHead('users', isAdmin() ? 'People who can sign in to Diddy' : 'Your account', adm(`<button class="btn primary" data-act="add">Add user</button>`)) +
+    `<div class="panel flush">${table([{ k: 'username', label: 'Username', fmt: (v, u) => esc(v) + (u.id === ME.user.id ? ' <span class="muted">(you)</span>' : '') },
+      { k: 'role', label: 'Role', fmt: role }, { k: 'created', label: 'Created', cls: 'mono' },
+      { k: 'last_login', label: 'Last web login', cls: 'mono', fmt: v => v ? esc(v) : '<span class="muted">never</span>' }], users,
+      { actions: u => `<button class="lnk" data-act="pw" data-id="${u.id}">Change password</button>` + (u.id !== ME.user.id ? adm(`<button class="lnk" data-act="role" data-id="${u.id}">Change role</button><button class="lnk danger" data-act="del" data-id="${u.id}">Delete</button>`) : '') })}</div>
+     <div class="panel"><h2>Roles</h2><p class="muted" style="margin:0"><b>Admin</b> can change everything, deploy, and manage users. <b>Read only</b> can view every page and change only their own password and dashboard layout.</p></div>
      <div class="panel"><h2>API</h2><p class="muted">Every screen uses the REST API at <span class="mono">/api/v1</span> with HTTP Basic authentication. Example:</p>
      <pre class="code">curl -u admin:PASSWORD -H 'Content-Type: application/json' \\
   -d '{"fqdn":"srv01.corp.local","ip":"next:10.10.1.0/24","mac":"aa:bb:cc:dd:ee:ff","configure_dhcp":true}' \\
   http://${esc(location.host)}/api/v1/hosts
 curl -u admin:PASSWORD -X POST http://${esc(location.host)}/api/v1/deploy</pre></div>`);
+  const find = id => users.find(x => x.id == id);
   on('add', () => form('Add user', [{ name: 'username', label: 'Username' }, { name: 'password', label: 'Password (min. 8 characters)', type: 'password' },
     { name: 'role', label: 'Role', type: 'select', options: [['readonly', 'Read only'], ['admin', 'Admin']] }],
     async d => { await api('POST', '/users', d); toast(`Added ${d.username}`); route(); }, 'Add user'));
-  on('pw', d => form('Change password', [{ name: 'password', label: 'New password (min. 8 characters)', type: 'password' }],
+  on('pw', d => form(`Change password for ${find(d.id).username}`, [{ name: 'password', label: 'New password (min. 8 characters)', type: 'password' }],
     async data => { await api('PUT', '/users/' + d.id, data); toast('Password changed'); }, 'Change password'));
-  on('del', async d => { const u = users.find(x => x.id == d.id); if (confirm(`Delete user ${u.username}?`)) { await api('DELETE', '/users/' + u.id); toast('User deleted'); route(); } });
+  on('role', d => { const u = find(d.id); form(`Change role for ${u.username}`, [{ name: 'role', label: 'Role', type: 'select', value: u.role, options: [['readonly', 'Read only'], ['admin', 'Admin']] }],
+    async data => { await api('PUT', '/users/' + u.id, data); toast('Role changed'); route(); }, 'Change role'); });
+  on('del', async d => { const u = find(d.id); if (confirm(`Delete user ${u.username}?`)) { await api('DELETE', '/users/' + u.id); toast('User deleted'); route(); } });
+}
+
+const AUD = { f: { q: '', user: '', action: '', since: '', until: '' }, rows: [], done: false, seq: 0 };
+const AUD_PAGE = 100;
+const audQuery = extra => new URLSearchParams(Object.assign(Object.fromEntries(Object.entries(AUD.f).filter(([, v]) => v)), extra || {})).toString();
+async function vSysAudit() {
+  const fc = await api('GET', '/audit/facets');
+  const opt = (list, cur, all) => `<option value="">${all}</option>` + list.map(v => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
+  main(sysHead('audit', 'Every change, login and deploy', `<a class="btn" id="aud-csv" href="#">Export CSV</a>`) +
+    `<div class="aud-tools">
+      <input class="filter" id="aud-q" type="search" placeholder="Search user, object or detail" value="${esc(AUD.f.q)}" aria-label="Search the audit log">
+      <select class="filter" id="aud-user" aria-label="User">${opt(fc.users, AUD.f.user, 'All users')}</select>
+      <select class="filter" id="aud-action" aria-label="Action">${opt(fc.actions, AUD.f.action, 'All actions')}</select>
+      <label class="aud-date">From <input class="filter" id="aud-since" type="date" value="${esc(AUD.f.since)}"></label>
+      <label class="aud-date">To <input class="filter" id="aud-until" type="date" value="${esc(AUD.f.until)}"></label>
+      <button class="btn" data-act="aud-reset">Clear filters</button></div>
+    <div class="muted aud-count" id="aud-count"></div>
+    <div class="panel flush" id="aud-table"></div>
+    <div class="aud-more" id="aud-more"></div>`);
+  const load = async more => {
+    const seq = ++AUD.seq, offset = more ? AUD.rows.length : 0;
+    const [rows, cnt] = await Promise.all([api('GET', '/audit?' + audQuery({ limit: AUD_PAGE, offset })), more ? null : api('GET', '/audit/count?' + audQuery())]);
+    if (seq !== AUD.seq || !$('#aud-table')) return;
+    AUD.rows = more ? AUD.rows.concat(rows) : rows; AUD.done = rows.length < AUD_PAGE;
+    if (cnt) AUD.total = cnt.total;
+    const filtered = Object.values(AUD.f).some(Boolean);
+    $('#aud-count').textContent = `Showing ${AUD.rows.length} of ${AUD.total} ${filtered ? 'matching entries' : 'entries'} (${fc.total} in total). Click an entry to see the full detail.`;
+    $('#aud-table').innerHTML = auditTable(AUD.rows);
+    $('#aud-more').innerHTML = AUD.done ? '' : `<button class="btn" data-act="aud-more">Load ${AUD_PAGE} more</button>`;
+    $('#aud-csv').href = '/api/v1/export/audit.csv' + (audQuery() ? '?' + audQuery() : '');
+  };
+  let tmr = null;
+  const set = (k, v, wait) => { AUD.f[k] = v; clearTimeout(tmr); tmr = setTimeout(() => load(false).catch(e => toast(e.message, true)), wait ? 300 : 0); };
+  $('#aud-q').oninput = e => set('q', e.target.value.trim(), true);
+  [['user', '#aud-user'], ['action', '#aud-action'], ['since', '#aud-since'], ['until', '#aud-until']].forEach(([k, sel]) => { $(sel).onchange = e => set(k, e.target.value); });
+  on('aud-more', () => load(true));
+  on('aud-reset', () => { AUD.f = { q: '', user: '', action: '', since: '', until: '' }; route(); });
+  await load(false);
 }
 async function vSearch(s) {
   const r = await api('GET', '/search?q=' + encodeURIComponent(s));
@@ -827,7 +936,7 @@ async function vSearch(s) {
 
 /* ---------------- shell */
 const ROUTES = [[/^#\/?(dashboard)?$/, vDashboard], [/^#\/dashboard\/(overview|dns|dhcp)$/, vDashboard], [/^#\/ipam$/, vIpam], [/^#\/ipam\/(\d+)$/, vNetwork], [/^#\/dns$/, vDns], [/^#\/dns\/(\d+)$/, vZone], [/^#\/resolver$/, vResolver], [/^#\/dns-cache$/, vDnsCache],
-  [/^#\/dhcp$/, vDhcp], [/^#\/hosts$/, vHosts], [/^#\/audit$/, vAudit], [/^#\/admin$/, vAdmin], [/^#\/deploy$/, vDeploy], [/^#\/health$/, vHealth], [/^#\/system$/, vSystem], [/^#\/search\/(.+)$/, vSearch]];
+  [/^#\/dhcp$/, vDhcp], [/^#\/hosts$/, vHosts], [/^#\/deploy$/, vDeploy], [/^#\/health$/, vHealth], [/^#\/system(?:\/(config|users|audit))?$/, vSystem], [/^#\/search\/(.+)$/, vSearch]];
 async function refreshMe() {
   ME = await api('GET', '/me');
   $('#uname').textContent = `${ME.user.username} (${ME.user.role === 'admin' ? 'admin' : 'read only'})`;
@@ -835,20 +944,37 @@ async function refreshMe() {
   $('#footver').textContent = ME.version;
   if (ME.slogan) $('#footslogan').textContent = ME.slogan;
 }
+// Alamat lama (<= 2.2) dialihkan ke menu System.
+const MOVED = { '#/audit': '#/system/audit', '#/admin': '#/system/users' };
+// Token navigasi: halaman lambat yang selesai setelah pengguna pindah halaman tidak boleh menimpa halaman baru.
+const NAV = { seq: 0, done: 0 };
 async function route() {
-  H = {};
+  const nav = ++NAV.seq;
+  H = Object.assign({}, GLOBAL_ACTS);
+  if (MOVED[location.hash]) { location.replace(MOVED[location.hash]); return; }
   const h = location.hash || '#/dashboard';
   const sect = (h.match(/^#\/(\w+)/) || [0, 'dashboard'])[1];
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.nav === sect));
   try {
     if (!ME) await refreshMe();
-    for (const [re, fn] of ROUTES) {
+    let fn = null, args = [];
+    for (const [re, f] of ROUTES) {
       const m = h.match(re);
-      if (m) { await fn(...m.slice(1).filter(x => x !== undefined && x !== 'dashboard').map(decodeURIComponent)); await refreshMe(); return; }
+      if (m) { fn = f; args = m.slice(1).filter(x => x !== undefined && x !== 'dashboard').map(decodeURIComponent); break; }
     }
-    main('<div class="panel empty">This page does not exist. <a href="#/dashboard">Go to the dashboard</a>.</div>');
+    if (fn) await fn(...args);
+    else main('<div class="panel empty">This page does not exist. <a href="#/dashboard">Go to the dashboard</a>.</div>');
+    if (nav !== NAV.seq) {
+      // Halaman ini sudah ditinggalkan tapi baru selesai sekarang dan mungkin menimpa halaman terbaru.
+      // Bila halaman terbaru sudah selesai lebih dulu, gambar ulang; bila belum, dia akan menimpa sendiri.
+      if (NAV.done === NAV.seq) route();
+      return;
+    }
+    NAV.done = nav;
+    if (fn) await refreshMe();
   } catch (e) {
-    if (e.message !== 'Unauthorized') main(`<div class="panel"><b>Could not load this page.</b><p class="muted">${esc(e.message)}</p></div>`);
+    if (nav === NAV.seq) NAV.done = nav;
+    if (nav === NAV.seq && e.message !== 'Unauthorized') main(`<div class="panel"><b>Could not load this page.</b><p class="muted">${esc(e.message)}</p></div>`);
   }
 }
 function showLogin() { ME = null; $('#login').hidden = false; $('#loginForm input[name=username]').focus(); }
