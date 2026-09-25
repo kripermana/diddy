@@ -19,7 +19,7 @@ jobs:
           sudo mkdir -p /var/cache/bind   # direktori kerja BIND yang dirujuk validasi options saat deploy
           if [ -f /etc/apparmor.d/usr.sbin.kea-dhcp4 ]; then
           echo '/tmp/diddy-test-*/** r,' | sudo tee /etc/apparmor.d/local/usr.sbin.kea-dhcp4
-           sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.kea-dhcp4
+          sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.kea-dhcp4
           fi
       - name: Dependency Python
         run: pip install -r requirements.txt pyflakes pycodestyle
