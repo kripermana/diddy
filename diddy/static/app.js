@@ -84,7 +84,7 @@ function head(title, sub, tools = '', crumb = '') {
 /* ---------------- dashboard */
 /* ---------------- dashboards (Overview, DNS, DHCP), widget bisa diatur per user */
 const BOARDS = [['overview', 'Overview'], ['dns', 'DNS'], ['dhcp', 'DHCP']];
-const DASH = { board: 'overview', range: '24h', edit: false, layout: [], saved: [], data: {}, timer: null, drag: null };
+const DASH = { board: 'overview', range: '24h', edit: false, layout: [], saved: [], data: {}, errors: {}, timer: null, drag: null, seq: 0, nav: 0 };
 try { DASH.range = localStorage.getItem('diddy-range') || '24h'; } catch (e) { }
 const RCODE_COLOR = { NOERROR: '--ok', NXDOMAIN: '--amber', SERVFAIL: '--danger', REFUSED: '--s-unmanaged', FORMERR: '--s-dns' };
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -160,7 +160,7 @@ const WIDGETS = {
     title: 'DNS requests per hour', src: ['dns'], render: (D, b) => {
       if (noDns(D.dns)) { b.innerHTML = dnsEmpty(D.dns); return; }
       const hs = D.dns.hourly.slice(-24);
-      b.innerHTML = `<div class="w-meta"><b>${F(hs.reduce((a, p) => a + p.v, 0))}</b> requests in the last 24 hours &middot; busiest hour <b>${F(Math.max(...hs.map(p => p.v)))}</b></div><div class="chart-host"></div>`;
+      b.innerHTML = `<div class="w-meta"><b>${F(hs.reduce((a, p) => a + p.v, 0))}</b> requests in the last 24 hours &middot; busiest hour <b>${F(hs.length ? Math.max(...hs.map(p => p.v)) : 0)}</b></div><div class="chart-host"></div>`;
       Charts.bars(b.querySelector('.chart-host'), { items: hs.map(p => ({ label: hourLbl(p.t), v: p.v, title: new Date(p.t * 1000).toLocaleString() })) }, { unit: 'requests' });
     }
   },
@@ -247,18 +247,19 @@ const WIDGETS = {
 const rangeSecs = () => ({ '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800 }[DASH.range]);
 
 async function vDashboard(board) {
+  // Token navigasi: respons milik tab/halaman yang sudah ditinggalkan tidak boleh menimpa tampilan sekarang.
+  const nav = ++DASH.nav;
   DASH.board = BOARDS.some(b => b[0] === board) ? board : 'overview';
   DASH.edit = false;
+  clearInterval(DASH.timer);
   const lay = await api('GET', '/dashboard/layout?board=' + DASH.board);
+  if (nav !== DASH.nav) return;
   DASH.layout = lay.widgets; DASH.saved = JSON.parse(JSON.stringify(lay.widgets));
   main(`<div class="head dash-head"><div><h1>Dashboard</h1><div class="sub">${esc(ME.name || 'Diddy')} ${esc(ME.version)} &middot; <em>${esc(ME.slogan || '')}</em></div></div>
     <div class="tools" id="dash-tools"></div></div>
     <div class="tabs board-tabs">${BOARDS.map(([k, l]) => `<a href="#/dashboard/${k}" class="${k === DASH.board ? 'on' : ''}">${l}</a>`).join('')}</div>
     <div id="dash-grid" class="dash-grid"></div>`);
-  drawTools();
-  await loadDash();
-  clearInterval(DASH.timer);
-  DASH.timer = setInterval(() => { if (!DASH.edit && document.getElementById('dash-grid')) loadDash(true); else if (!document.getElementById('dash-grid')) clearInterval(DASH.timer); }, 60000);
+  // Handler didaftarkan sebelum data dimuat supaya tombol langsung bisa dipakai walau metrik 7 hari lambat.
   on('range', d => { DASH.range = d.r; try { localStorage.setItem('diddy-range', d.r); } catch (e) { } drawTools(); loadDash(); });
   on('customize', () => { DASH.edit = true; drawTools(); drawGrid(); });
   on('cancel-edit', () => { DASH.edit = false; DASH.layout = JSON.parse(JSON.stringify(DASH.saved)); drawTools(); loadDash(); });
@@ -272,8 +273,17 @@ async function vDashboard(board) {
     DASH.layout = r.widgets; DASH.saved = JSON.parse(JSON.stringify(r.widgets)); DASH.edit = false; toast('Dashboard reset'); drawTools(); loadDash();
   });
   on('w-size', d => { DASH.layout[+d.i].size = d.s; drawGrid(); });
-  on('w-remove', d => { DASH.layout.splice(+d.i, 1); drawGrid(); });
+  on('w-remove', d => { DASH.layout.splice(+d.i, 1); drawTools(); drawGrid(); });
   on('w-up', d => { const i = +d.i; if (i > 0) { [DASH.layout[i - 1], DASH.layout[i]] = [DASH.layout[i], DASH.layout[i - 1]]; drawGrid(); } });
+  drawTools();
+  watchGrid();
+  await loadDash();
+  if (nav !== DASH.nav) return;
+  clearInterval(DASH.timer);
+  DASH.timer = setInterval(() => {
+    if (!document.getElementById('dash-grid')) { clearInterval(DASH.timer); return; }
+    if (!DASH.edit && !document.hidden) loadDash(true);
+  }, 60000);
 }
 function drawTools() {
   const t = $('#dash-tools'); if (!t) return;
@@ -293,11 +303,16 @@ async function loadDash(quiet) {
     dash: () => api('GET', '/dashboard'), health: () => api('GET', '/health'),
     dns: () => api('GET', '/metrics/dns?range=' + DASH.range), dhcp: () => api('GET', '/metrics/dhcp?range=' + DASH.range)
   };
-  const keys = [...need];
-  try {
-    const vals = await Promise.all(keys.map(k => src[k]()));
-    keys.forEach((k, i) => { DASH.data[k] = vals[i]; });
-  } catch (e) { if (!quiet) toast(e.message, true); }
+  const keys = [...need], seq = ++DASH.seq;
+  // allSettled: satu sumber gagal (mis. metrik DHCP) tidak membuat widget lain ikut macet di "Loading...".
+  const res = await Promise.allSettled(keys.map(k => src[k]()));
+  if (seq !== DASH.seq) return;   // sudah ada permintaan yang lebih baru (ganti range/tab), buang hasil lama
+  const bad = [];
+  keys.forEach((k, i) => {
+    if (res[i].status === 'fulfilled') { DASH.data[k] = res[i].value; delete DASH.errors[k]; }
+    else { DASH.errors[k] = res[i].reason.message; if (res[i].reason.message !== 'Unauthorized') bad.push(res[i].reason.message); }
+  });
+  if (bad.length && !quiet) toast(bad[0], true);
   drawGrid();
 }
 function drawGrid() {
@@ -312,23 +327,47 @@ function drawGrid() {
   }).join('') || '<div class="panel empty">This dashboard is empty. Click Customize, then Add widget.</div>';
   g.querySelectorAll('.widget').forEach(sec => {
     const w = DASH.layout[+sec.dataset.i], W = WIDGETS[w.id], body = sec.querySelector('.w-body');
+    if (DASH.edit) dragWidget(sec);
+    const failed = W.src.find(s => !DASH.data[s] && DASH.errors[s]);
+    if (failed) { body.innerHTML = `<div class="chart-empty">Could not load data.<br><small>${esc(DASH.errors[failed])}</small></div>`; return; }
     if (W.src.some(s => !DASH.data[s])) { body.innerHTML = '<div class="chart-empty">Loading...</div>'; return; }
     try { W.render(DASH.data, body); } catch (e) { body.innerHTML = `<div class="chart-empty">${esc(e.message)}</div>`; }
-    if (DASH.edit) {
-      sec.addEventListener('dragstart', ev => { DASH.drag = +sec.dataset.i; sec.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; });
-      sec.addEventListener('dragend', () => sec.classList.remove('dragging'));
-      sec.addEventListener('dragover', ev => { ev.preventDefault(); sec.classList.add('drop'); });
-      sec.addEventListener('dragleave', () => sec.classList.remove('drop'));
-      sec.addEventListener('drop', ev => {
-        ev.preventDefault(); const to = +sec.dataset.i, from = DASH.drag;
-        if (from === null || from === to) return;
-        const [m] = DASH.layout.splice(from, 1); DASH.layout.splice(to, 0, m); DASH.drag = null; drawGrid();
-      });
-    }
+  });
+  DASH.gridW = g.clientWidth;
+}
+function dragWidget(sec) {
+  sec.addEventListener('dragstart', ev => {
+    DASH.drag = +sec.dataset.i; sec.classList.add('dragging');
+    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer.setData('text/plain', sec.dataset.i);   // Firefox tidak memulai drag tanpa setData
+  });
+  sec.addEventListener('dragend', () => {
+    DASH.drag = null;
+    document.querySelectorAll('#dash-grid .widget').forEach(w => w.classList.remove('dragging', 'drop'));
+  });
+  sec.addEventListener('dragover', ev => { if (DASH.drag === null) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; sec.classList.add('drop'); });
+  // dragleave juga terpicu saat kursor pindah ke elemen anak; abaikan supaya garis penanda tidak berkedip
+  sec.addEventListener('dragleave', ev => { if (!sec.contains(ev.relatedTarget)) sec.classList.remove('drop'); });
+  sec.addEventListener('drop', ev => {
+    ev.preventDefault(); sec.classList.remove('drop');
+    const to = +sec.dataset.i, from = DASH.drag;
+    DASH.drag = null;
+    if (from === null || from === to) return;
+    const [m] = DASH.layout.splice(from, 1); DASH.layout.splice(to, 0, m); drawGrid();
   });
 }
-let _rsz = null;
-window.addEventListener('resize', () => { clearTimeout(_rsz); _rsz = setTimeout(() => { if ($('#dash-grid')) drawGrid(); }, 200); });
+/* Grafik SVG digambar selebar wadahnya saat render. Gambar ulang bila lebar grid berubah (resize jendela,
+   scrollbar muncul/hilang setelah data dimuat, zoom), bukan hanya pada event resize jendela. */
+let _rsz = null, _ro = null;
+function watchGrid() {
+  const g = $('#dash-grid'); if (!g) return;
+  const redraw = () => {
+    clearTimeout(_rsz);
+    _rsz = setTimeout(() => { const cur = $('#dash-grid'); if (cur && Math.abs(cur.clientWidth - (DASH.gridW || 0)) > 1) drawGrid(); }, 150);
+  };
+  if (window.ResizeObserver) { if (_ro) _ro.disconnect(); _ro = new ResizeObserver(redraw); _ro.observe(g); }
+  else if (!DASH.onResize) { DASH.onResize = true; window.addEventListener('resize', redraw); }
+}
 
 function auditTable(rows) {
   return table([{ k: 'ts', label: 'Time', cls: 'mono' }, { k: 'username', label: 'User' }, { k: 'action', label: 'Action' }, { k: 'object', label: 'Object' },
