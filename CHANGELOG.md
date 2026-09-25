@@ -2,12 +2,8 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
-## [2.3.0]
+## [2.3.1]
 ### Ditambahkan
-- Menu **System** menggantikan menu *Audit log* dan *Admin*, berisi empat tab: **Information**, **Configuration**, **Users**, dan **Audit log**. Alamat lama `#/audit` dan `#/admin` otomatis dialihkan.
-- **Audit log**: pencarian teks (user, action, object, detail), filter user, action, dan rentang tanggal, jumlah entri yang cocok, muat 100 entri berikutnya, serta export CSV sesuai filter. Klik entri (juga dari widget *Recent activity* di dashboard) untuk membuka detail lengkap: detail JSON ditampilkan per field, lengkap dengan JSON mentah dan tombol salin. Tidak ada lagi detail yang terpotong "..." tanpa bisa dibaca.
-- **Configuration** (khusus admin): semua variabel `diddy.conf` per grup (web server, database, BIND, Kea, dnsdist, DDNS, drift, statistik) dengan nilai efektif, nilai default, asal nilai (file atau default), dan keterangannya. Bisa difilter dan disaring hanya yang berbeda dari default. Password tidak pernah dikirim ke browser, hanya ditandai `(set)` atau `(empty)`. Variabel yang tidak dikenal (salah ketik) dan section lama `[liteddi]` diberi peringatan. Masih read-only; perubahan tetap lewat file config lalu restart.
-- **Users**: kolom login web terakhir (dari audit log), tombol ubah role, dan penjelasan role.
 - Tombol **Services** di samping tombol Health (System → Information dan halaman Health, khusus admin):
   - **Review and deploy**: membuka halaman Deploy, bisa dijalankan walau tidak ada perubahan tertunda.
   - **Reload services**: reload BIND, Kea (lewat control socket), dan dnsdist bila dipakai.
@@ -15,6 +11,13 @@ Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama Lit
   - **Shut down services**: hentikan semua service DNS/DHCP, dengan dialog konfirmasi dan password user yang login. Setelahnya tombol berganti menjadi **Start services**.
   - Diddy sendiri tidak pernah ikut dimatikan. Saat service dimatikan, banner merah dengan tombol *Start services* tampil di semua halaman dan Health memberi peringatan. Reload/restart ditolak, deploy hanya menulis file, dan perbaikan drift maupun refresh DDNS tidak menyalakan service lagi diam-diam. Semua aksi tercatat di audit log.
 - Endpoint `/services`, `/services/reload`, `/services/restart`, `/services/stop`, `/services/start`.
+
+## [2.3.0]
+### Ditambahkan
+- Menu **System** menggantikan menu *Audit log* dan *Admin*, berisi empat tab: **Information**, **Configuration**, **Users**, dan **Audit log**. Alamat lama `#/audit` dan `#/admin` otomatis dialihkan.
+- **Audit log**: pencarian teks (user, action, object, detail), filter user, action, dan rentang tanggal, jumlah entri yang cocok, muat 100 entri berikutnya, serta export CSV sesuai filter. Klik entri (juga dari widget *Recent activity* di dashboard) untuk membuka detail lengkap: detail JSON ditampilkan per field, lengkap dengan JSON mentah dan tombol salin. Tidak ada lagi detail yang terpotong "..." tanpa bisa dibaca.
+- **Configuration** (khusus admin): semua variabel `diddy.conf` per grup (web server, database, BIND, Kea, dnsdist, DDNS, drift, statistik) dengan nilai efektif, nilai default, asal nilai (file atau default), dan keterangannya. Bisa difilter dan disaring hanya yang berbeda dari default. Password tidak pernah dikirim ke browser, hanya ditandai `(set)` atau `(empty)`. Variabel yang tidak dikenal (salah ketik) dan section lama `[liteddi]` diberi peringatan. Masih read-only; perubahan tetap lewat file config lalu restart.
+- **Users**: kolom login web terakhir (dari audit log), tombol ubah role, dan penjelasan role.
 - Endpoint `/audit` menerima filter `q`, `user`, `action`, `since`, `until`, dan `offset`. Endpoint baru `/audit/{id}`, `/audit/count`, `/audit/facets`, `/system/config`, dan `/export/audit.csv`.
 ### Diperbaiki
 - Halaman yang lambat dimuat (mis. System information yang memeriksa versi BIND/Kea) bisa menimpa halaman lain bila pengguna sudah pindah menu sebelum halaman itu selesai. Kini berlaku untuk semua halaman, bukan hanya dashboard.

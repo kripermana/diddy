@@ -2,7 +2,7 @@
 
 *Your DDI Friend*
 
-(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.3.0.
+(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.3.1.
 
 Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4), dan dnsdist (upstream DoT/DoH) dari satu database MySQL atau SQLite. Database adalah sumber kebenaran; file config service selalu dihasilkan dari database, divalidasi, lalu baru ditulis.
 
