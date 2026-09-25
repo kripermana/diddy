@@ -60,9 +60,9 @@ function modal(html, wide) {
   document.body.appendChild(m);
   return m;
 }
-function form(title, fields, submit, saveLabel = 'Save') {
-  const m = modal(`<h3>${esc(title)}</h3><form>${fields.map(fieldHtml).join('')}<div class="err"></div>
-    <div class="btns"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">${esc(saveLabel)}</button></div></form>`);
+function form(title, fields, submit, saveLabel = 'Save', intro = '', danger = false) {
+  const m = modal(`<h3>${esc(title)}</h3><form>${intro ? `<div class="form-intro">${intro}</div>` : ''}${fields.map(fieldHtml).join('')}<div class="err"></div>
+    <div class="btns"><button type="button" class="btn" data-close>Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}">${esc(saveLabel)}</button></div></form>`);
   m.querySelector('[data-close]').onclick = () => m.remove();
   const f = m.querySelector('form');
   f.onsubmit = async e => {
@@ -72,7 +72,7 @@ function form(title, fields, submit, saveLabel = 'Save') {
       const el = f.querySelector(`[name="${fd.name}"]`); if (!el || fd.readonly) return;
       data[fd.name] = fd.type === 'checkbox' ? el.checked : fd.type === 'number' ? (el.value === '' ? null : Number(el.value)) : el.value.trim();
     });
-    const btn = f.querySelector('.btn.primary'); btn.disabled = true;
+    const btn = f.querySelector('.btns button:not([type=button])'); btn.disabled = true;
     try { await submit(data); m.remove(); } catch (err) { m.querySelector('.err').textContent = err.message; btn.disabled = false; }
   };
   const first = f.querySelector('input:not([readonly]):not([type=checkbox]),select,textarea'); first && first.focus();
@@ -377,7 +377,71 @@ function auditTable(rows) {
     actions: r => `<button class="lnk" data-act="audit-detail" data-id="${r.id}">View</button>` });
 }
 /* Detail satu entri audit. Dipakai dari halaman mana pun (dashboard dan System > Audit log). */
-const GLOBAL_ACTS = { 'audit-detail': d => auditDetail(+d.id) };
+const GLOBAL_ACTS = { 'audit-detail': d => auditDetail(+d.id), 'svc-open': (d, el) => svcToggle(el), svc: d => svcAction(d.a) };
+
+/* ---------------- kendali service (dropdown Services di System dan Health) */
+function svcMenu(st) {
+  if (!isAdmin() || !st) return '';
+  const run = st.services.map(s => `${esc(s.name)}: <b class="${s.state === 'active' ? 'ok' : s.state === 'unknown' ? '' : 'bad'}">${esc(s.state)}</b>`).join('<br>');
+  return `<div class="svc-menu"><button class="btn" data-act="svc-open" aria-haspopup="true" aria-expanded="false">Services <span aria-hidden="true">&#9662;</span></button>
+    <div class="svc-list" role="menu" hidden>
+      <div class="svc-state">${st.stopped ? `<b class="bad">Shut down</b> by ${esc(st.stopped_by || '?')} at ${esc(st.stopped_at || '?')}<br>` : ''}${run}</div>
+      <a role="menuitem" href="#/deploy">Review and deploy${ME.pending ? ' <span class="tag warn">changes pending</span>' : ''}</a>
+      <button role="menuitem" data-act="svc" data-a="reload" ${st.stopped ? 'disabled' : ''}>Reload services</button>
+      <button role="menuitem" data-act="svc" data-a="restart" ${st.stopped ? 'disabled' : ''}>Restart services</button>
+      ${st.stopped ? '<button role="menuitem" data-act="svc" data-a="start">Start services</button>'
+        : '<button role="menuitem" class="danger" data-act="svc" data-a="stop">Shut down services</button>'}
+    </div></div>`;
+}
+function svcClose() {
+  document.querySelectorAll('.svc-list').forEach(l => { l.hidden = true; });
+  document.querySelectorAll('[data-act="svc-open"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+function svcToggle(btn) {
+  const l = btn.nextElementSibling, open = l.hidden;
+  svcClose();
+  if (!open) return;
+  l.hidden = false; btn.setAttribute('aria-expanded', 'true');
+  // Menu rata kanan dengan tombol; di layar sempit geser supaya tidak keluar dari tepi kiri
+  l.style.left = l.style.right = '';
+  const r = l.getBoundingClientRect();
+  if (r.left < 8) { l.style.right = 'auto'; l.style.left = Math.min(0, 8 - btn.getBoundingClientRect().left) + 'px'; }
+  const f = l.querySelector('a,button:not([disabled])'); f && f.focus();
+}
+document.addEventListener('click', e => { if (!e.target.closest('.svc-menu')) svcClose(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') svcClose(); });
+const SVC_TEXT = {
+  reload: ['Reload services', 'reloaded'], restart: ['Restart services', 'restarted'],
+  stop: ['Shut down services', 'shut down'], start: ['Start services', 'started']
+};
+async function svcAction(a) {
+  svcClose();
+  const st = await api('GET', '/services');
+  const names = st.services.map(s => `<li><b>${esc(s.name)}</b> <span class="mono muted">${esc(s.unit)}</span></li>`).join('');
+  const go = async body => {
+    const r = await api('POST', '/services/' + a, body);
+    svcReport(r);
+    toast(r.ok ? `Services ${SVC_TEXT[a][1]}` : `${SVC_TEXT[a][0]}: some steps failed`, !r.ok);
+    await refreshMe(); if (/^#\/(system|health)/.test(location.hash)) route();
+  };
+  const list = `<ul class="svc-names">${names}</ul><p class="muted">Diddy itself keeps running.${st.dry_run ? ' Dry run mode is on: no command is executed.' : ''}</p>`;
+  if (a === 'restart') {
+    form('Restart services?', [], () => go(), 'Restart services',
+      `<p>These services will be restarted. DNS answers and DHCP leases pause for a few seconds while they come back.</p>${list}`, true);
+  } else if (a === 'stop') {
+    form('Shut down services?', [{ name: 'password', label: `Password of ${ME.user.username}`, type: 'password' }], d => go({ password: d.password }), 'Shut down services',
+      `<p class="svc-warn"><b>Clients lose DNS resolution and cannot get or renew DHCP leases</b> until the services are started again.</p>${list}<p>Enter your password to confirm.</p>`, true);
+  } else {
+    await go();
+  }
+}
+function svcReport(r) {
+  const m = modal(`<h3>${esc(SVC_TEXT[r.action][0])}: ${r.ok ? 'done' : 'finished with errors'}</h3><div class="report">${r.report.map(s =>
+    `<div><b class="${s.ok ? 'ok' : 'bad'}">${s.ok ? '&#10003;' : '&#10007;'}</b><div><div>${esc(s.step)}</div>${s.output ? `<pre>${esc(s.output)}</pre>` : ''}</div></div>`).join('')}</div>
+    <div class="btns"><button type="button" class="btn primary" data-close>Close</button></div>`);
+  m.querySelector('[data-close]').onclick = () => m.remove();
+  m.querySelector('[data-close]').focus();
+}
 function detailValue(v) {
   return v !== null && typeof v === 'object' ? `<pre class="code wrap">${esc(JSON.stringify(v, null, 2))}</pre>` : `<span class="mono">${esc(v === null ? 'null' : String(v))}</span>`;
 }
@@ -794,8 +858,8 @@ async function vDeploy() {
 /* ---------------- health and system information */
 const PILL = s => `<span class="pill ${s === 'ok' ? 'ok' : s === 'fail' ? 'fail' : 'warn'}">${s === 'ok' ? 'OK' : s === 'fail' ? 'Problem' : s === 'warn' ? 'Attention' : 'Unknown'}</span>`;
 async function vHealth() {
-  const h = await api('GET', '/health');
-  main(head('Health', 'Live status of everything Diddy depends on', `<button class="btn" data-act="refresh">Refresh</button>`) +
+  const [h, st] = await Promise.all([api('GET', '/health'), isAdmin() ? api('GET', '/services') : null]);
+  main(head('Health', 'Live status of everything Diddy depends on', `<button class="btn" data-act="refresh">Refresh</button>` + svcMenu(st)) +
     `<div class="panel"><h2>Overall ${PILL(h.overall)}</h2><div class="health">${h.items.map(i =>
       `<div class="hrow"><span class="dot ${i.state === 'ok' ? 'on' : i.state === 'fail' ? 'off' : i.state === 'warn' ? 'warn' : ''}"></span><b>${esc(i.name)}</b><span class="detail">${esc(i.detail)}</span></div>`).join('')}</div></div>`);
   on('refresh', () => route());
@@ -810,9 +874,9 @@ async function vSystem(tab = '') {
   if (tab === 'config') return vSysConfig();
   if (tab === 'users') return vSysUsers();
   if (tab === 'audit') return vSysAudit();
-  const s = await api('GET', '/system');
+  const [s, st] = await Promise.all([api('GET', '/system'), isAdmin() ? api('GET', '/services') : null]);
   const row = (l, v) => `<div><span>${l}</span><b>${esc(v)}</b></div>`;
-  main(sysHead('', `Diddy ${esc(s.diddy)} by ${esc(s.author)}`, `<a class="btn" href="#/health">Health</a>`) +
+  main(sysHead('', `Diddy ${esc(s.diddy)} by ${esc(s.author)}`, `<a class="btn" href="#/health">Health</a>` + svcMenu(st)) +
     `<div class="panel"><h2>Software</h2><div class="kv">
       ${row('Diddy version', s.diddy)}${row('Python', s.python)}${row('BIND', s.bind)}${row('Kea DHCPv4', s.kea)}
       ${row('Operating system', s.distribution)}${row('Kernel', s.os)}</div></div>
@@ -941,6 +1005,9 @@ async function refreshMe() {
   ME = await api('GET', '/me');
   $('#uname').textContent = `${ME.user.username} (${ME.user.role === 'admin' ? 'admin' : 'read only'})`;
   $('#pending').hidden = !ME.pending || location.hash === '#/deploy';
+  const down = $('#svc-down');
+  down.hidden = !ME.services_stopped;
+  if (ME.services_stopped) down.innerHTML = `<span>DNS and DHCP services are shut down. Clients get no DNS answers or DHCP leases.</span>${adm('<button class="btn small" data-act="svc" data-a="start">Start services</button>')}`;
   $('#footver').textContent = ME.version;
   if (ME.slogan) $('#footslogan').textContent = ME.slogan;
 }

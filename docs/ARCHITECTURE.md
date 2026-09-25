@@ -2,7 +2,7 @@
 
 *Your DDI Friend*
 
-(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.3.0.
+(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.3.1.
 
 Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4), dan dnsdist (upstream DoT/DoH) dari satu database MySQL atau SQLite. Database adalah sumber kebenaran; file config service selalu dihasilkan dari database, divalidasi, lalu baru ditulis.
 
@@ -40,7 +40,8 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `hosts.py` | Host object: DNS + PTR + reservasi DHCP dalam satu objek, import CSV |
 | `deploy/drift.py` | Salinan file yang ditulis Diddy, deteksi dan pemulihan drift |
 | `deploy/pipeline.py` | `run_deploy()`: render, validasi, tulis, reload |
-| `deploy/routes.py` | Endpoint deploy, preview, drift |
+| `deploy/services.py` | Kendali service: reload, restart, stop, start BIND/Kea/dnsdist dan status "shut down" |
+| `deploy/routes.py` | Endpoint deploy, preview, drift, kendali service |
 | `metrics.py` | Collector statistik BIND/Kea per menit, pengolahan counter menjadi grafik |
 | `dashboards.py` | Endpoint statistik dan layout dashboard per user |
 | `system.py` | Dashboard, health, system information, konfigurasi sistem, pencarian, export, audit log |
@@ -56,6 +57,7 @@ Import hanya boleh mengarah ke lapisan yang sama atau di bawahnya. Aturan ini ya
 3  Logika domain     dhcp.leases -> dns.zones -> ipam.networks -> dhcp.kea / dns.resolver
                      dns.cache -> dns.resolver
                      deploy.drift -> dns.ddns -> deploy.pipeline
+                     deploy.services -> dhcp.kea / dns.resolver
 2  Layanan bersama   audit  auth
 1  Data              db.tables  db.connection  db.schema
 0  Dasar             version  config  core.*

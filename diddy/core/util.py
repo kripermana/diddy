@@ -4,6 +4,7 @@ import datetime
 import ipaddress
 import re
 import shlex
+import shutil
 import subprocess
 
 from flask import request
@@ -76,6 +77,15 @@ def run(cmd, timeout=60):
         return False, f"command not found: {args[0]}"
     except subprocess.TimeoutExpired:
         return False, f"timeout: {' '.join(args)}"
+
+
+def svc_state(name):
+    """Status unit systemd (active, inactive, failed, ...), atau 'unknown' bila systemctl tidak ada."""
+    if not shutil.which("systemctl"):
+        return "unknown"
+    ok, out = run(["systemctl", "is-active", name], timeout=5)
+    st = (out.splitlines() or ["unknown"])[0].strip()
+    return st if re.fullmatch(r"[a-z-]+", st) else "unknown"
 
 
 def clean(r):

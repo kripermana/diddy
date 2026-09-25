@@ -348,6 +348,60 @@ check(hist["hits"] == 100 and hist["misses"] == 15 and hist["hit_ratio"] == 87.0
       and all(p["v"] is None or 0 <= p["v"] <= 100 for p in hist["series"]),
       f"DNS cache: hit ratio historis, restart BIND ditangani {hist}")
 
+# ------------------------------------------------------------------ kendali service (Services: reload/restart/stop/start)
+st = call("get", "/services")
+check([s["key"] for s in st["services"]][-2:] == ["dns", "dhcp"] and not st["stopped"], "services: daftar service dikelola")
+check(call("post", "/services/reload")["ok"], "services: reload (dry run)")
+check(call("post", "/services/restart")["ok"], "services: restart (dry run)")
+call("post", "/services/bogus", expect=400, label="services: aksi tidak dikenal ditolak")
+call("post", "/services/stop", {}, expect=403, label="services: stop tanpa password ditolak")
+call("post", "/services/stop", {"password": "salah"}, expect=403, label="services: stop dengan password salah ditolak")
+check(not call("get", "/services")["stopped"], "services: password salah tidak menghentikan apa pun")
+r = call("post", "/services/stop", {"password": "admin12345"})
+check(r["ok"] and r["report"][0]["step"].startswith("stop DHCP"), "services: stop, DHCP dihentikan lebih dulu")
+st = call("get", "/services")
+check(st["stopped"] and st["stopped_by"] == "admin" and call("get", "/me")["services_stopped"],
+      "services: status shut down tersimpan dan terlihat di /me")
+check(any(i["name"] == "Service control" and i["state"] == "warn" for i in call("get", "/health")["items"]),
+      "services: health memberi peringatan saat service dimatikan")
+call("post", "/services/reload", expect=409, label="services: reload ditolak saat service dimatikan")
+call("post", "/services/restart", expect=409, label="services: restart ditolak saat service dimatikan")
+check(call("post", "/deploy")["ok"], "deploy tetap bisa saat service dimatikan (file ditulis)")
+
+import diddy.deploy.drift as _drift  # noqa: E402
+import diddy.deploy.services as _svc  # noqa: E402
+CALLS = []
+
+
+def _fake_run(cmd, timeout=60):
+    CALLS.append(cmd if isinstance(cmd, str) else " ".join(cmd))
+    return True, ""
+
+
+with app.app_context():
+    _svc.DRY, _svc.run, _drift.DRY, _drift.run = False, _fake_run, False, _fake_run
+    try:
+        zf = [i["path"] for i in _drift.drift_report() if i["path"].endswith("db.corp.local")][0]
+        with open(zf, "a") as f:
+            f.write("; diubah manual\n")
+        _drift.drift_repair()
+        check(CALLS == [], "drift repair tidak menyalakan service yang sedang dimatikan " + str(CALLS))
+        _svc.control("start")
+        check(CALLS[-2:] == ["systemctl start named", "systemctl start kea-dhcp4-server"] and not _svc.services_stopped(),
+              "services: start menjalankan systemctl start BIND lalu Kea " + str(CALLS))
+        CALLS.clear()
+        _svc.control("stop")
+        check(CALLS[:2] == ["systemctl stop kea-dhcp4-server", "systemctl stop named"], "services: urutan stop " + str(CALLS))
+        _svc.control("start")
+        CALLS.clear()
+        _svc.control("restart")
+        check(CALLS[-2:] == ["systemctl restart named", "systemctl restart kea-dhcp4-server"], "services: restart " + str(CALLS))
+    finally:
+        _svc.DRY, _drift.DRY = True, True
+        _svc.run = _drift.run = __import__("diddy.core.util", fromlist=["run"]).run
+check(not call("get", "/services")["stopped"] and not call("get", "/me")["services_stopped"], "services: start mengembalikan status")
+check(any(a["action"] == "services-stop" for a in call("get", "/audit?limit=50")), "services: aksi tercatat di audit log")
+
 # ------------------------------------------------------------------ user read-only
 call("post", "/users", {"username": "viewer", "password": "viewer123", "role": "readonly"})
 call("post", "/logout")
@@ -358,6 +412,8 @@ call("get", "/dns-cache", label="user read-only boleh melihat cache DNS")
 call("put", "/dashboard/layout?board=overview", {"widgets": [{"id": "health", "size": "S"}]},
      label="user read-only boleh menyimpan layout dashboard miliknya")
 call("get", "/networks")
+call("post", "/services/reload", expect=403, label="user read-only tidak bisa reload service")
+call("post", "/services/stop", {"password": "viewer123"}, expect=403, label="user read-only tidak bisa mematikan service")
 
 # ------------------------------------------------------------------ CLI
 env = dict(os.environ, DIDDY_CONF=CONF, PYTHONPATH=ROOT)

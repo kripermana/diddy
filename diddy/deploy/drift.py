@@ -8,7 +8,7 @@ import shutil
 from ..audit import audit
 from ..config import C, DRY
 from ..core.util import now, run
-from ..db.connection import q, x
+from ..db.connection import q, state_get, x
 
 
 def record_file(path, text):
@@ -57,7 +57,7 @@ def drift_repair(items=None):
         open(tmp, "w").write(row["content"])
         os.replace(tmp, i["path"])
         fixed.append(i["path"])
-    if fixed and not DRY:
+    if fixed and not DRY and state_get("services_stopped") != "1":   # jangan nyalakan service yang dihentikan
         run(C["dns_reload_cmd"])
         if any("kea" in f for f in fixed):
             run(["systemctl", "restart", C["dhcp_service"]], timeout=30)

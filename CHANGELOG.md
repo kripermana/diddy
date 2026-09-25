@@ -2,6 +2,16 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.3.1]
+### Ditambahkan
+- Tombol **Services** di samping tombol Health (System → Information dan halaman Health, khusus admin):
+  - **Review and deploy**: membuka halaman Deploy, bisa dijalankan walau tidak ada perubahan tertunda.
+  - **Reload services**: reload BIND, Kea (lewat control socket), dan dnsdist bila dipakai.
+  - **Restart services**: restart semua service DNS/DHCP, dengan dialog konfirmasi.
+  - **Shut down services**: hentikan semua service DNS/DHCP, dengan dialog konfirmasi dan password user yang login. Setelahnya tombol berganti menjadi **Start services**.
+  - Diddy sendiri tidak pernah ikut dimatikan. Saat service dimatikan, banner merah dengan tombol *Start services* tampil di semua halaman dan Health memberi peringatan. Reload/restart ditolak, deploy hanya menulis file, dan perbaikan drift maupun refresh DDNS tidak menyalakan service lagi diam-diam. Semua aksi tercatat di audit log.
+- Endpoint `/services`, `/services/reload`, `/services/restart`, `/services/stop`, `/services/start`.
+
 ## [2.3.0]
 ### Ditambahkan
 - Menu **System** menggantikan menu *Audit log* dan *Admin*, berisi empat tab: **Information**, **Configuration**, **Users**, dan **Audit log**. Alamat lama `#/audit` dan `#/admin` otomatis dialihkan.

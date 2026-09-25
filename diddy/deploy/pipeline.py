@@ -165,6 +165,9 @@ def run_deploy():
         # 3) reload services
         if DRY:
             step("reload services", True, "dry_run = true: services not reloaded")
+        elif state_get("services_stopped") == "1":
+            step("reload services", True, "services are shut down: files written, "
+                 "they take effect when the services are started")
         else:
             if dd is not None:   # proxy lebih dulu, supaya BIND tidak forward ke port mati
                 svc = C["dnsdist_service"]

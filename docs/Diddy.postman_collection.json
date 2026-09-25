@@ -418,6 +418,36 @@
           }
         },
         {
+          "name": "Status service DNS/DHCP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /services -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/services",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "services"
+              ]
+            },
+            "description": "Service yang dikelola Diddy dan statusnya. Aksi reload/restart/stop/start ada di folder Z."
+          }
+        },
+        {
           "name": "Konfigurasi sistem",
           "event": [
             {
@@ -2619,6 +2649,37 @@
               ]
             },
             "description": ""
+          }
+        },
+        {
+          "name": "Reload semua service DNS/DHCP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"POST /services/reload -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/services/reload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "services",
+                "reload"
+              ]
+            },
+            "description": "rndc reload, config-reload Kea, reload dnsdist. Diddy tidak ikut. Restart: /services/restart; shutdown: /services/stop dengan body {\"password\": \"...\"}; nyalakan lagi: /services/start."
           }
         },
         {
