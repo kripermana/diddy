@@ -77,6 +77,9 @@ Semua perubahan data hanya tersimpan di database dan menyalakan tanda *pending*.
 | GET | `/deploy/preview` | Isi file yang akan ditulis |
 | POST | `/deploy` | Validasi dan terapkan ke service |
 | GET | `/drift` | File service yang berubah di luar Diddy |
+| GET | `/services` | Service DNS/DHCP yang dikelola, status systemd, dan status shut down (`stopped`, `stopped_at`, `stopped_by`) |
+| POST | `/services/reload`, `/services/restart`, `/services/start` | Reload, restart, atau nyalakan semua service DNS/DHCP (Diddy tidak ikut). Reload/restart ditolak 409 saat service dimatikan |
+| POST | `/services/stop` | Matikan semua service DNS/DHCP. Body `{"password": "..."}` berisi password user yang login; salah = 403 |
 | POST | `/drift/repair` | Kembalikan file yang drift |
 | GET, POST | `/users` | Daftar / buat user (dengan `last_login` dari audit log; user read-only hanya melihat dirinya) |
 | PUT, DELETE | `/users/{id}` | Ganti password atau role / hapus user |

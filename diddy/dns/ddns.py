@@ -11,7 +11,7 @@ from ..config import C, DRY
 from ..core.log import log
 from ..core.runtime import LAST_DDNS
 from ..core.util import run
-from ..db.connection import q, x
+from ..db.connection import q, state_get, x
 from ..deploy.drift import record_file
 from ..dhcp.leases import read_leases
 from .zones import DYN_BEGIN, DYN_END, LEGACY_DYN_BEGIN, find_zone, fmt_rr, rel
@@ -125,7 +125,7 @@ def ddns_refresh():
         x("UPDATE zones SET serial=? WHERE id=?", (serial, z["id"]))
         changed.append(z["name"])
     LAST_DDNS["skipped"] = skipped
-    if changed and not DRY:
+    if changed and not DRY and state_get("services_stopped") != "1":   # BIND sengaja dihentikan: cukup tulis file
         for name in changed:
             ok, out = run(["rndc", "reload", name]) if shutil.which("rndc") else (False, "")
             if not ok:

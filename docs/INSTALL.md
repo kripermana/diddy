@@ -344,6 +344,27 @@ Sebelum menggali log, buka **Health** (link di footer atau tombol di Dashboard).
 
 Tema tampilan (Light, Dark, Dracula, Nord, Solarized) ada di dropdown pojok kanan atas dan tersimpan per browser.
 
+### 3.0a Kendali service dari UI (Services)
+
+Tombol **Services** ada di samping tombol Health, di **System → Information** dan di halaman **Health** (khusus admin). Semua aksi berlaku untuk BIND, Kea DHCPv4, dan dnsdist (bila upstream terenkripsi dipakai). Diddy sendiri tidak pernah ikut dimatikan.
+
+| Aksi | Yang dijalankan | Konfirmasi |
+|---|---|---|
+| Review and deploy | Buka halaman Deploy; deploy bisa dijalankan walau tidak ada perubahan tertunda | - |
+| Reload services | `dns_reload_cmd` (default `rndc reload`), `config-reload` Kea lewat control socket (fallback `kea_reload_fallback_cmd`), `systemctl reload-or-restart` dnsdist | - |
+| Restart services | `systemctl restart` tiap service | Dialog konfirmasi |
+| Shut down services | `systemctl stop`: Kea dulu, lalu BIND, lalu dnsdist | Dialog konfirmasi + password user yang login |
+| Start services | `systemctl start`: dnsdist, BIND, lalu Kea | - |
+
+Selama service dimatikan dari Diddy:
+
+- Banner merah tampil di semua halaman, lengkap dengan tombol **Start services**, dan Health memberi peringatan *Service control*.
+- Reload dan restart ditolak. Deploy tetap menulis dan memvalidasi file, tetapi tidak me-reload service; config baru terpakai saat service dinyalakan.
+- Perbaikan drift dan refresh DDNS tetap menulis file, tetapi tidak me-reload atau me-restart service, supaya service yang sengaja dimatikan tidak menyala sendiri.
+- Semua aksi, termasuk percobaan shutdown dengan password salah, dicatat di audit log (`services-*`).
+
+Kalau service dinyalakan manual dengan `systemctl start`, status "shut down" di Diddy tetap ada sampai tombol **Start services** diklik.
+
 ### 3.0b Drift: config service berubah di luar Diddy
 
 Diddy menyimpan salinan setiap file yang ditulisnya (zone file, `named.conf.diddy`, file options, `kea-dhcp4.conf`, `dnsdist.conf`). Tiap `drift_check_interval` detik (default 300) salinan itu dibandingkan dengan file yang benar-benar dipakai service.

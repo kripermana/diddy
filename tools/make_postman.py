@@ -70,6 +70,8 @@ F = [
             desc="Filter opsional: q (teks), user, action, since dan until (YYYY-MM-DD). Halaman lewat limit dan offset."),
         req("Jumlah entri audit terfilter", "GET", "/audit/count", query=[("action", "login")]),
         req("Pilihan filter audit", "GET", "/audit/facets", desc="Daftar user dan action yang pernah tercatat."),
+        req("Status service DNS/DHCP", "GET", "/services",
+            desc="Service yang dikelola Diddy dan statusnya. Aksi reload/restart/stop/start ada di folder Z."),
         req("Konfigurasi sistem", "GET", "/system/config",
             desc="Semua variabel diddy.conf dengan nilai efektif, default, dan asalnya. Hanya admin; password tidak dikirim."),
         req("Statistik DNS", "GET", "/metrics/dns", query=[("range", "24h")],
@@ -191,6 +193,9 @@ F = [
             desc="Menerapkan SEMUA perubahan tertunda ke service. Hasil 422 berarti validasi gagal dan tidak ada "
                  "file yang diubah."),
         req("Pulihkan drift", "POST", "/drift/repair"),
+        req("Reload semua service DNS/DHCP", "POST", "/services/reload",
+            desc="rndc reload, config-reload Kea, reload dnsdist. Diddy tidak ikut. Restart: /services/restart; "
+                 "shutdown: /services/stop dengan body {\"password\": \"...\"}; nyalakan lagi: /services/start."),
         req("Refresh DDNS sekarang", "POST", "/ddns/refresh"),
         req("Ping sweep network", "POST", "/networks/{{networkId}}/discover",
             desc="Mengirim ping ke seluruh network (maks /22)."),

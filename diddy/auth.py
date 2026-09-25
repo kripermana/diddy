@@ -103,5 +103,5 @@ def api_logout():
 @auth
 def api_me():
     return jsonify(user=g.user, pending=state_get("pending") == "1", name=NAME, version=VERSION, slogan=SLOGAN,
-                   dry_run=DRY,
+                   dry_run=DRY, services_stopped=state_get("services_stopped") == "1",
                    defaults={"primary_ns": C["default_ns"], "admin_email": C["default_admin_email"]})

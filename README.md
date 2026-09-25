@@ -33,6 +33,7 @@ Minimal 1 vCPU / 1 GB RAM (MySQL ikut di server yang sama): cocok untuk VM kecil
 | Menu System | System information, konfigurasi (`diddy.conf` read-only, password disembunyikan), user dengan login terakhir, dan audit log dengan pencarian, filter, detail lengkap, serta export CSV |
 | Deteksi drift | Diddy menyimpan salinan tiap file yang ditulisnya, membandingkan berkala dengan file yang dipakai service, mencatat ke audit log, dan bisa mengembalikannya otomatis |
 | Grid status / health | Halaman Health (service, database, config BIND, disk, status deploy, DDNS) dan System information |
+| Kendali service | Menu Services: review and deploy, reload, restart (dengan konfirmasi), shut down (konfirmasi + password) dan start BIND/Kea/dnsdist tanpa mematikan Diddy |
 | Tampilan | 5 tema: Light, Dark, Dracula, Nord, Solarized; pilihan tersimpan di browser |
 | CSV Import/Export | Import host, export network/host/record/lease |
 

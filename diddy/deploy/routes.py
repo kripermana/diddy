@@ -1,13 +1,19 @@
 """Endpoint REST deploy dan drift."""
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, g, jsonify
+from werkzeug.security import check_password_hash
 
+from ..audit import audit
 from ..auth import auth
+from ..core.errors import ApiError
+from ..core.util import body
+from ..db.connection import q
 from ..config import C, DRY
 from ..core.runtime import LAST_DRIFT
 from ..db.connection import state_get
 from .drift import drift_repair, drift_report
 from .pipeline import build, run_deploy
+from .services import control, services_status
 
 bp = Blueprint("deploy_routes", __name__)
 
@@ -40,3 +46,21 @@ def api_deploy_preview():
 def api_deploy():
     result, status = run_deploy()
     return jsonify(result), status
+
+
+@bp.get("/api/v1/services")
+@auth
+def api_services():
+    return jsonify(services_status())
+
+
+@bp.post("/api/v1/services/<action>")
+@auth
+def api_services_control(action):
+    """reload, restart, stop, start semua service DNS/DHCP (Diddy tidak ikut). stop butuh password admin."""
+    if action == "stop":
+        u = q("SELECT pw_hash FROM users WHERE id=?", (g.user["id"],), one=True)
+        if not u or not check_password_hash(u["pw_hash"], body().get("password") or ""):
+            audit("services-stop-denied", "services", "wrong password")
+            raise ApiError("Wrong password. Services were not shut down.", 403)
+    return jsonify(control(action, g.user["username"]))

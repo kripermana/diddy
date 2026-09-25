@@ -397,3 +397,19 @@ pre.code.wrap { white-space: pre-wrap; word-break: break-word; }
 .cfg-val { word-break: break-all; }
 .cfg-changed { font-weight: 600; color: var(--primary); }
 @media (max-width: 760px) { .aud-tools .filter, .aud-tools select.filter { width: 100%; max-width: none; } .aud-date { width: 100%; } .aud-date .filter { flex: 1; } }
+
+/* dropdown Services dan banner service mati (awalan svc- supaya unik) */
+.svc-menu { position: relative; display: inline-block; }
+.svc-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 260px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; box-shadow: 0 12px 30px var(--shadow); padding: 6px; display: grid; gap: 2px; }
+.svc-list a, .svc-list button { display: block; width: 100%; text-align: left; padding: 8px 12px; border: 0; border-radius: 5px; background: none;
+  color: var(--text); font: 14px var(--sans); cursor: pointer; }
+.svc-list a:hover, .svc-list button:hover:not([disabled]), .svc-list a:focus, .svc-list button:focus { background: var(--hover); text-decoration: none; outline: none; }
+.svc-list button[disabled] { color: var(--muted); cursor: not-allowed; opacity: .6; }
+.svc-list button.danger { color: var(--danger); }
+.svc-state { font-size: 12px; color: var(--muted); padding: 6px 12px 8px; border-bottom: 1px solid var(--line-2); margin-bottom: 4px; line-height: 1.6; }
+.svc-state .ok { color: var(--ok); } .svc-state .bad { color: var(--danger); }
+.svc-names { margin: 8px 0; padding-left: 20px; } .svc-names li { margin: 3px 0; }
+.svc-warn { color: var(--danger); }
+.form-intro p { margin: 0 0 8px; }
+#svc-down { display: flex; align-items: center; justify-content: center; gap: 14px; background: var(--danger); color: #fff; padding: 8px 20px; font-weight: 600; }

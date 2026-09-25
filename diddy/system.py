@@ -17,9 +17,10 @@ from .auth import auth
 from .config import C, CONF_PATH, DB, DRY, FILE, KEA_MYSQL, MYSQL, PFX, describe_conf
 from .core.errors import ApiError
 from .core.runtime import LAST_DDNS, STARTED
-from .core.util import clean, human_time, now, run
+from .core.util import clean, human_time, now, run, svc_state
 from .db.connection import mysql_connect, q, state_get
 from .deploy.drift import drift_report
+from .deploy.services import services_status
 from .dhcp.leases import read_leases
 from .dns.resolver import dns_settings, proxy_target
 from .ipam.networks import all_nets, usage_sets, utilization
@@ -27,14 +28,6 @@ from .metrics import STATUS
 from .version import AUTHOR, NAME, SLOGAN, VERSION
 
 bp = Blueprint("system", __name__)
-
-
-def svc_state(name):
-    if not shutil.which("systemctl"):
-        return "unknown"
-    ok, out = run(["systemctl", "is-active", name], timeout=5)
-    st = (out.splitlines() or ["unknown"])[0].strip()
-    return st if re.fullmatch(r"[a-z-]+", st) else "unknown"
 
 
 @bp.get("/api/v1/dashboard")
@@ -85,6 +78,10 @@ def api_health():
         items.append({"name": name, "state": state, "detail": detail})
 
     add("Diddy service", "ok", f"v{VERSION}, uptime {human_time(time.time() - STARTED)}")
+    ss = services_status()
+    if ss["stopped"]:
+        add("Service control", "warn", f"DNS and DHCP services were shut down from Diddy by {ss['stopped_by']} at "
+            f"{ss['stopped_at']}. Use Services > Start services to bring them back.")
     try:
         q("SELECT 1 FROM users LIMIT 1")
         add("Diddy database", "ok",
