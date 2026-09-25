@@ -11,6 +11,7 @@ Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama Lit
   - **Shut down services**: hentikan semua service DNS/DHCP, dengan dialog konfirmasi dan password user yang login. Setelahnya tombol berganti menjadi **Start services**.
   - Diddy sendiri tidak pernah ikut dimatikan. Saat service dimatikan, banner merah dengan tombol *Start services* tampil di semua halaman dan Health memberi peringatan. Reload/restart ditolak, deploy hanya menulis file, dan perbaikan drift maupun refresh DDNS tidak menyalakan service lagi diam-diam. Semua aksi tercatat di audit log.
 - Endpoint `/services`, `/services/reload`, `/services/restart`, `/services/stop`, `/services/start`.
+- `tools/dhcp_sim.py`: simulator klien DHCP untuk lab (Scapy) dengan MAC dan hostname acak. Skenario sanity, reservation, weird hostname, duplicate, fill, exhaust, release, dan expire; hasil dicek ke DNS (dig) dan ke API Diddy. Config INI (`--example-config`), bisa ditimpa lewat opsi command line.
 
 ## [2.3.0]
 ### Ditambahkan
