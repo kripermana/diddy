@@ -2,6 +2,17 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.3.0]
+### Ditambahkan
+- Menu **System** menggantikan menu *Audit log* dan *Admin*, berisi empat tab: **Information**, **Configuration**, **Users**, dan **Audit log**. Alamat lama `#/audit` dan `#/admin` otomatis dialihkan.
+- **Audit log**: pencarian teks (user, action, object, detail), filter user, action, dan rentang tanggal, jumlah entri yang cocok, muat 100 entri berikutnya, serta export CSV sesuai filter. Klik entri (juga dari widget *Recent activity* di dashboard) untuk membuka detail lengkap: detail JSON ditampilkan per field, lengkap dengan JSON mentah dan tombol salin. Tidak ada lagi detail yang terpotong "..." tanpa bisa dibaca.
+- **Configuration** (khusus admin): semua variabel `diddy.conf` per grup (web server, database, BIND, Kea, dnsdist, DDNS, drift, statistik) dengan nilai efektif, nilai default, asal nilai (file atau default), dan keterangannya. Bisa difilter dan disaring hanya yang berbeda dari default. Password tidak pernah dikirim ke browser, hanya ditandai `(set)` atau `(empty)`. Variabel yang tidak dikenal (salah ketik) dan section lama `[liteddi]` diberi peringatan. Masih read-only; perubahan tetap lewat file config lalu restart.
+- **Users**: kolom login web terakhir (dari audit log), tombol ubah role, dan penjelasan role.
+- Endpoint `/audit` menerima filter `q`, `user`, `action`, `since`, `until`, dan `offset`. Endpoint baru `/audit/{id}`, `/audit/count`, `/audit/facets`, `/system/config`, dan `/export/audit.csv`.
+### Diperbaiki
+- Halaman yang lambat dimuat (mis. System information yang memeriksa versi BIND/Kea) bisa menimpa halaman lain bila pengguna sudah pindah menu sebelum halaman itu selesai. Kini berlaku untuk semua halaman, bukan hanya dashboard.
+- User read-only kini melihat tanggal akun dibuat miliknya sendiri di daftar user.
+
 ## [2.2.4]
 ### Diperbaiki
 - Dashboard: berpindah tab (Overview/DNS/DHCP) dengan cepat bisa menampilkan widget milik tab sebelumnya, dan menekan *Save layout* setelahnya menyimpan layout itu ke tab yang salah. Respons yang sudah basi kini dibuang.

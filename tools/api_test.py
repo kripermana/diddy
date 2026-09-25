@@ -87,7 +87,14 @@ if h:
 call("GET", "/system")
 call("GET", "/dashboard")
 call("GET", "/search?q=10.")
-call("GET", "/audit?limit=5")
+audit = call("GET", "/audit?limit=5") or []
+call("GET", "/audit?action=login&limit=5&offset=0")
+call("GET", "/audit/count?action=login")
+call("GET", "/audit/facets")
+if audit:
+    call("GET", f"/audit/{audit[0]['id']}")
+if me["user"]["role"] == "admin":
+    call("GET", "/system/config")
 
 section("IPAM, DHCP, DNS")
 nets = call("GET", "/networks") or []
@@ -111,7 +118,7 @@ call("GET", "/forwarders")
 call("GET", "/deploy/preview")
 call("GET", "/drift")
 call("GET", "/users")
-for kind in ("networks", "hosts", "records", "leases"):
+for kind in ("networks", "hosts", "records", "leases", "audit"):
     call("GET", f"/export/{kind}.csv")
 
 # ------------------------------------------------------------------ siklus tulis

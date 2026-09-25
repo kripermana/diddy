@@ -368,3 +368,32 @@ svg .cbar { transition: opacity .15s; } svg .cbar:hover { opacity: .75; }
 .cache-lookup { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
 .cache-lookup select.filter { width: auto; }
 @media (max-width: 760px) { .cache-lookup .filter { width: 100%; } }
+
+/* menu System: audit log, konfigurasi, user (awalan aud-/cfg-/audit- supaya tidak bentrok dengan class lain) */
+tr.row-link { cursor: pointer; }
+tr.row-link:focus-within td, tr.row-link:hover td { background: var(--hover); }
+.audit-obj { max-width: 260px; }
+.w-foot { padding: 10px 16px; border-top: 1px solid var(--line-2); font-size: 13px; }
+.aud-tools, .cfg-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.aud-tools select.filter { width: auto; max-width: 200px; }
+.aud-tools .filter[type=date] { width: auto; }
+.aud-date { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.aud-count { font-size: 13px; margin-bottom: 8px; }
+.aud-more { display: flex; justify-content: center; margin: 4px 0 16px; }
+.audit-kv { margin-bottom: 6px; }
+.audit-kv div b { word-break: break-word; }
+.audit-h { margin: 16px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.audit-fields { border: 1px solid var(--line-2); border-radius: 6px; }
+.audit-fields th { width: 30%; vertical-align: top; text-align: left; font-weight: 600; padding: 7px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line-2); word-break: break-word; }
+.audit-fields td { word-break: break-word; }
+.audit-fields pre.code { max-height: 260px; padding: 8px 10px; }
+.audit-raw { margin-top: 10px; } .audit-raw summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+pre.code.wrap { white-space: pre-wrap; word-break: break-word; }
+.cfg-note { margin: 12px 0 0; font-size: 13px; }
+.cfg-warn { margin: 10px 0 0; padding: 8px 12px; border-radius: 5px; background: var(--banner-bg); color: var(--banner-fg); font-size: 13px; }
+.cfg-tools .chk { font-size: 13px; }
+.cfg-group { padding: 16px 16px 0; }
+.cfg-desc { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.cfg-val { word-break: break-all; }
+.cfg-changed { font-weight: 600; color: var(--primary); }
+@media (max-width: 760px) { .aud-tools .filter, .aud-tools select.filter { width: 100%; max-width: none; } .aud-date { width: 100%; } .aud-date .filter { flex: 1; } }

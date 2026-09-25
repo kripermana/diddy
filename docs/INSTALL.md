@@ -1,6 +1,6 @@
 # Diddy: Prasyarat, Instalasi, dan Troubleshooting
 
-Dokumen ini untuk Diddy 2.2.4 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
+Dokumen ini untuk Diddy 2.3.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
 
 ---
 
@@ -211,7 +211,7 @@ ufw enable
 
 Buka `http://IP-SERVER:8080` dan login sebagai `admin`.
 
-1. **Admin → Change password**, lalu buat user read-only untuk tim lain bila perlu.
+1. **System → Users → Change password**, lalu buat user read-only untuk tim lain bila perlu.
 2. **DNS → Add zone**: `corp.local`. Isi *Name server IP* agar glue record `ns1` ikut dibuat.
 3. **IPAM → Add network**: `10.10.1.0/24`, isi gateway, centang *Serve DHCP*, isi DNS server dan domain, centang *Create the reverse DNS zone*.
 4. Buka network tersebut, lalu **Add DHCP range**: `10.10.1.100` sampai `10.10.1.199`.

@@ -5,7 +5,7 @@ import re
 from flask import Blueprint, g, jsonify, request
 from werkzeug.security import generate_password_hash
 
-from .audit import audit
+from .audit import audit, last_logins
 from .auth import auth
 from .core.errors import ApiError
 from .core.util import body, now
@@ -31,9 +31,13 @@ def api_users():
                 (u, generate_password_hash(d["password"]), role, now()))
         audit("create", f"user {u}", role)
         return jsonify(id=uid), 201
-    if g.user["role"] != "admin":
-        return jsonify([g.user])
-    return jsonify(q("SELECT id,username,role,created FROM users ORDER BY username"))
+    rows = q("SELECT id,username,role,created FROM users " +
+             ("ORDER BY username" if g.user["role"] == "admin" else "WHERE id=?"),
+             () if g.user["role"] == "admin" else (g.user["id"],))
+    seen = last_logins()
+    for r in rows:
+        r["last_login"] = seen.get(r["username"])
+    return jsonify(rows)
 
 
 @bp.route("/api/v1/users/<int:uid>", methods=["PUT", "DELETE"])

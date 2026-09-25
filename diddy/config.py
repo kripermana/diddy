@@ -67,6 +67,56 @@ DEFAULTS = {
 }
 
 
+# Keterangan tiap variabel untuk halaman System > Configuration: (grup, teks UI dalam bahasa Inggris).
+META = {
+    "listen": ("Web server", "Address the Diddy web UI and API listen on"),
+    "port": ("Web server", "TCP port of the web UI and API"),
+    "data_dir": ("General", "Directory for the SQLite database, initial admin password and deploy copies"),
+    "dry_run": ("General", "Write files but never reload BIND, Kea or dnsdist"),
+    "default_ns": ("DNS (BIND)", "Primary name server used for new zones"),
+    "default_admin_email": ("DNS (BIND)", "SOA contact e-mail used for new zones"),
+    "bind_dir": ("DNS (BIND)", "Directory where Diddy writes zone files and named.conf.diddy"),
+    "dns_reload_cmd": ("DNS (BIND)", "Command that reloads BIND after a deploy"),
+    "dns_service": ("DNS (BIND)", "systemd unit of BIND, used for health checks"),
+    "bind_options_file": ("DNS (BIND)", "File included inside options {} of named.conf.options"),
+    "bind_local_addr": ("DNS (BIND)", "BIND address queried for DNS cache lookups"),
+    "kea_conf": ("DHCP (Kea)", "kea-dhcp4 configuration file written by Diddy"),
+    "kea_socket": ("DHCP (Kea)", "Kea control socket for config reload and statistics"),
+    "kea_reload_fallback_cmd": ("DHCP (Kea)", "Command used when the control socket cannot reload Kea"),
+    "kea_lease_file": ("DHCP (Kea)", "Kea memfile lease CSV (lease storage memfile)"),
+    "dhcp_service": ("DHCP (Kea)", "systemd unit of Kea DHCPv4, used for health checks"),
+    "dhcp_interfaces": ("DHCP (Kea)", "Interfaces Kea listens on, * for all"),
+    "kea_lease_backend": ("DHCP (Kea)", "Kea lease storage: memfile or mysql"),
+    "kea_db_host": ("DHCP (Kea)", "MySQL host of the Kea lease database"),
+    "kea_db_port": ("DHCP (Kea)", "MySQL port of the Kea lease database"),
+    "kea_db_name": ("DHCP (Kea)", "Name of the Kea lease database"),
+    "kea_db_user": ("DHCP (Kea)", "User of the Kea lease database"),
+    "kea_db_password": ("DHCP (Kea)", "Password of the Kea lease database"),
+    "dnsdist_conf": ("Encrypted upstream (dnsdist)", "dnsdist configuration file written by Diddy"),
+    "dnsdist_service": ("Encrypted upstream (dnsdist)", "systemd unit of dnsdist"),
+    "dnsdist_listen": ("Encrypted upstream (dnsdist)", "Local address dnsdist listens on for BIND"),
+    "dnsdist_port": ("Encrypted upstream (dnsdist)", "Local port dnsdist listens on for BIND"),
+    "ddns_ttl": ("DDNS", "TTL of A/PTR records created from DHCP leases"),
+    "ddns_refresh_interval": ("DDNS", "Seconds between DDNS refreshes from the lease table, 0 = off"),
+    "drift_check_interval": ("Drift", "Seconds between checks of service files against the last deploy, 0 = off"),
+    "drift_auto_repair": ("Drift", "Restore drifted files automatically"),
+    "metrics_interval": ("Dashboard statistics", "Seconds between BIND/Kea statistics samples, 0 = off"),
+    "metrics_retention_days": ("Dashboard statistics", "Days of statistics kept in the database"),
+    "bind_stats_url": ("Dashboard statistics", "BIND statistics-channel URL"),
+    "bind_stats_manage": ("Dashboard statistics", "Let Diddy add the statistics-channel to named.conf.diddy"),
+    "dns_capacity_qps": ("Dashboard statistics", "Queries per second treated as 100% DNS utilization"),
+    "db_backend": ("Database", "Diddy database: sqlite or mysql"),
+    "mysql_host": ("Database", "MySQL host of the Diddy database"),
+    "mysql_port": ("Database", "MySQL port of the Diddy database"),
+    "mysql_user": ("Database", "MySQL user of the Diddy database"),
+    "mysql_password": ("Database", "MySQL password of the Diddy database"),
+    "mysql_database": ("Database", "MySQL database name"),
+    "table_prefix": ("Database", "Prefix for Diddy's own tables, e.g. ddi_"),
+}
+SECRET = re.compile(r"password|secret|token|key$")
+FILE = {"section": None, "keys": set(), "unknown": []}   # isi file config, untuk membedakan dari default
+
+
 def load_conf():
     """Baca config. Section [diddy]; config LiteDDI lama dengan section [liteddi] tetap terbaca."""
     raw = configparser.ConfigParser(interpolation=None)
@@ -76,7 +126,31 @@ def load_conf():
     cp.read_dict({"diddy": DEFAULTS})
     if section:
         cp.read_dict({"diddy": dict(raw[section])})
+        FILE.update(section=section, keys=set(raw[section].keys()),
+                    unknown=sorted(k for k in raw[section].keys() if k not in DEFAULTS))
     return cp["diddy"]
+
+
+def describe_conf():
+    """Semua variabel config beserta nilai efektif, default, asal nilai, dan keterangannya.
+
+    Nilai rahasia (password dan sejenisnya) tidak pernah dikirim; hanya ditandai terisi atau kosong.
+    """
+    items = []
+    for k, default in DEFAULTS.items():
+        group, desc = META.get(k, ("Other", ""))
+        secret = bool(SECRET.search(k))
+        val = C[k]
+        items.append({"key": k, "group": group, "description": desc, "secret": secret,
+                      "value": ("(set)" if val else "(empty)") if secret else val,
+                      "default": ("(empty)" if not default else "(set)") if secret else default,
+                      "source": "file" if k in FILE["keys"] else "default",
+                      "changed": val != default})
+    for k in FILE["unknown"]:
+        items.append({"key": k, "group": "Unknown", "description": "Not a Diddy setting, ignored. Check for typos.",
+                      "secret": bool(SECRET.search(k)), "value": "(hidden)", "default": "", "source": "file",
+                      "changed": True})
+    return items
 
 
 C = load_conf()
