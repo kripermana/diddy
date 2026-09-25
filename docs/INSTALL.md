@@ -1,6 +1,6 @@
 # Diddy: Prasyarat, Instalasi, dan Troubleshooting
 
-Dokumen ini untuk Diddy 2.2.3 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
+Dokumen ini untuk Diddy 2.2.4 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
 
 ---
 

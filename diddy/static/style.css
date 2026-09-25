@@ -237,12 +237,19 @@ label.chk { display: flex; align-items: center; gap: 8px; color: var(--text); fo
   .ipinfo { position: static; }
   #search input { width: 180px; }
 }
-@media (max-width: 760px) {
+@media (max-width: 1250px) {
+  .top { gap: 14px; }
+  #nav a { padding: 0 9px; }
+  #search { flex: 0 1 180px; min-width: 110px; }
+  #search input { width: 100%; }
+  .user span { display: none; }
+}
+@media (max-width: 900px) {
   .top { height: auto; flex-wrap: wrap; padding: 10px 14px; gap: 10px; }
   #nav { order: 3; width: 100%; overflow-x: auto; height: 38px; }
   #search { margin-left: 0; flex: 1; }
-  #search input { width: 100%; }
-  .user span { display: none; }
+}
+@media (max-width: 760px) {
   main { padding: 16px 12px 50px; }
   .ipmap { grid-template-columns: repeat(8, minmax(0, 1fr)); }
   .row2 { grid-template-columns: 1fr; }
@@ -292,7 +299,8 @@ footer.app em { font-style: italic; }
 .widget header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-2); }
 .widget header h3 { margin: 0; font-size: 13.5px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); flex: 1; }
 .widget .w-body { padding: 14px 16px 16px; flex: 1; min-width: 0; position: relative; }
-.widget.flush .w-body { padding: 0; }
+.widget.flush .w-body { padding: 0; overflow-x: auto; }
+.widget .clip { max-width: 240px; }
 .w-ctl { display: inline-flex; align-items: center; gap: 4px; }
 .grip { color: var(--muted); cursor: grab; letter-spacing: -3px; font-size: 14px; }
 .dash-grid.editing .widget { outline: 2px dashed var(--line); outline-offset: -2px; cursor: move; }

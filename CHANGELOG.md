@@ -2,6 +2,18 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.2.4]
+### Diperbaiki
+- Dashboard: berpindah tab (Overview/DNS/DHCP) dengan cepat bisa menampilkan widget milik tab sebelumnya, dan menekan *Save layout* setelahnya menyimpan layout itu ke tab yang salah. Respons yang sudah basi kini dibuang.
+- Dashboard: mengganti rentang waktu dengan cepat (mis. 7d lalu 1h) bisa menampilkan data rentang lama dengan label rentang baru bila respons lama datang belakangan.
+- Dashboard: bila satu sumber data gagal (mis. `/metrics/dhcp` error), seluruh widget macet di "Loading...". Kini hanya widget yang bergantung pada sumber itu yang menampilkan pesan error; widget lain tetap tampil.
+- Dashboard: tombol Customize dan pilihan rentang tidak merespons selama data pertama masih dimuat.
+- Dashboard: tabel *Recent activity* meluber keluar widget dan membuat halaman bisa digeser horizontal. Kolom detail kini dipotong dan tabel bergulir di dalam widget.
+- Dashboard: grafik tidak menyesuaikan lebar saat scrollbar muncul/hilang atau zoom berubah (hanya saat jendela di-resize). Kini memakai `ResizeObserver`.
+- Dashboard: susun ulang widget dengan drag-and-drop tidak jalan di Firefox (tanpa `dataTransfer.setData`), widget yang datanya belum dimuat tidak bisa di-drag, dan garis penanda drop berkedip/tertinggal.
+- Dashboard: refresh otomatis tiap menit dilewati saat tab browser tidak terlihat.
+- Top bar terpotong (tombol Log out keluar layar) pada lebar layar sekitar 760 sampai 1250 px.
+
 ## [2.2.3]
 ### Diperbaiki
 - Deploy gagal di `check kea-dhcp4.conf` dengan "Unable to open file" setelah reboot, bila `/etc/kea` dimiliki `_kea:_kea` 0750: `kea-dhcp4 -t` berjalan sebagai root, dan profil AppArmor-nya tidak memberi `dac_read_search`/`dac_override`. `install.sh` dan `upgrade.sh` kini mengatur `/etc/kea` menjadi `root:<group service Kea>` 0750 dan `kea-dhcp4.conf*` 0640. Config yang berisi password database lease juga tidak lagi bisa dibaca semua user.
