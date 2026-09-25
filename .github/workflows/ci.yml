@@ -16,6 +16,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq bind9-utils kea-dhcp4-server
+          sudo mkdir -p /var/cache/bind   # direktori kerja BIND yang dirujuk validasi options saat deploy
       - name: Dependency Python
         run: pip install -r requirements.txt pyflakes pycodestyle
       - name: Lint
