@@ -618,10 +618,13 @@ async function vDns() {
     { k: 'dynamic_count', label: 'From DHCP', fmt: v => v ? `<span class="tag warn">${v}</span>` : '<span class="muted">0</span>' },
     { k: 'primary_ns', label: 'Primary NS' }, { k: 'serial', label: 'Serial', cls: 'mono' }, { k: 'comment', label: 'Comment' }];
   const acts = r => adm(`<button class="lnk" data-act="edit" data-id="${r.id}">Edit</button><button class="lnk danger" data-act="del" data-id="${r.id}">Delete</button>`);
-  main(head('DNS zones', 'Authoritative zones served by BIND on this server', adm(`<button class="btn primary" data-act="add">Add zone</button>`) + `<a class="btn" href="#/resolver">Resolver &amp; forwarders</a><a class="btn" href="#/dns-cache">DNS cache</a><a class="btn" href="/api/v1/export/records.csv">Export records</a>`) +
+  main(head('DNS zones', 'Authoritative zones served by BIND on this server', adm(`<button class="btn primary" data-act="add">Add zone</button><button class="btn" data-act="import">Import zone</button>`) + `<a class="btn" href="#/resolver">Resolver &amp; forwarders</a><a class="btn" href="#/dns-cache">DNS cache</a>
+    <select class="filter zx-export" aria-label="Export"><option value="">Export...</option><option value="/api/v1/zones/export">All zones (JSON backup)</option><option value="/api/v1/export/records.csv">All records (CSV)</option></select>`) +
     `<div class="panel flush"><div style="padding:16px 16px 0"><h2>Forward zones</h2></div>${table(cols, zones.filter(z => !z.reverse), { empty: 'No forward zone yet. Add one, for example corp.local.', actions: acts })}</div>
      <div class="panel flush"><div style="padding:16px 16px 0"><h2>Reverse zones</h2></div>${table(cols, zones.filter(z => z.reverse), { empty: 'No reverse zone yet. They are created when you add a network with the reverse zone option.', actions: acts })}</div>`);
   on('add', () => zoneForm());
+  on('import', () => importZone());
+  exportSelect();
   on('edit', d => zoneForm(zones.find(z => z.id == d.id)));
   on('del', async d => { const z = zones.find(x => x.id == d.id); if (confirm(`Delete zone ${z.name} and all its manual records?`)) { await api('DELETE', '/zones/' + z.id); toast(`Deleted ${z.name}`); route(); } });
 }
@@ -639,10 +642,74 @@ function zoneForm(z = {}) {
   }, z.id ? 'Save zone' : 'Add zone');
 }
 const HINT = { A: '10.20.30.40', AAAA: '2001:db8::10', CNAME: 'target.corp.local', MX: '10 mail.corp.local', TXT: 'v=spf1 mx -all', NS: 'ns2.corp.local', PTR: 'host.corp.local', SRV: '10 5 5060 sip.corp.local' };
+/* ---------------- import / export zona */
+function exportSelect() {
+  document.querySelectorAll('.zx-export').forEach(sel => { sel.onchange = () => { if (sel.value) { location.href = sel.value; sel.value = ''; } }; });
+}
+function importZone(target) {
+  const m = modal(`<h3>${target ? `Import records into ${esc(target.name)}` : 'Import zone'}</h3>
+    <div class="zx-form">
+      <label>File<input type="file" id="zx-file" accept=".zone,.db,.txt,.csv,.json,text/plain"></label>
+      <label>or paste the content<textarea id="zx-text" rows="7" placeholder="$ORIGIN corp.local.&#10;$TTL 3600&#10;www  IN A 10.0.0.10"></textarea></label>
+      <div class="zx-row">
+        <label>Format<select id="zx-format"><option value="">Detect automatically</option><option value="bind">Zone file (BIND / RFC 1035)</option><option value="csv">CSV</option><option value="json">JSON (Diddy)</option></select></label>
+        ${target ? '' : '<label>Zone name<input id="zx-zone" placeholder="from $ORIGIN or SOA when empty"></label>'}
+        <label>Existing records<select id="zx-mode"><option value="merge">Keep them, add new records</option><option value="replace">Replace all manual records</option></select></label>
+      </div>
+      <small class="muted">Zone file, CSV (<span class="mono">name,type,value,ttl,comment</span>, optional <span class="mono">zone</span> column) or a Diddy JSON export. Supported types: A, AAAA, CNAME, MX, TXT, NS, PTR, SRV. Records from host objects and DHCP are never imported as manual records.</small>
+    </div>
+    <div id="zx-preview"></div><div class="err"></div>
+    <div class="btns"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn" id="zx-check">Preview</button><button type="button" class="btn primary" id="zx-go" disabled>Import</button></div>`, true);
+  const close = () => m.remove();
+  m.querySelector('[data-close]').onclick = close;
+  let fileText = '', fileName = '', plan = null;
+  const err = t => { m.querySelector('.err').textContent = t || ''; };
+  const req = () => ({ text: fileText || $('#zx-text', m).value, filename: fileName, format: $('#zx-format', m).value,
+    zone: target ? '' : $('#zx-zone', m).value.trim(), zone_id: target ? target.id : null, mode: $('#zx-mode', m).value });
+  const stale = () => { plan = null; $('#zx-go', m).disabled = true; $('#zx-preview', m).innerHTML = ''; };
+  $('#zx-file', m).onchange = async e => {
+    const f = e.target.files[0]; fileName = f ? f.name : ''; fileText = f ? await f.text() : '';
+    if (f) $('#zx-text', m).value = ''; stale();
+  };
+  ['#zx-text', '#zx-format', '#zx-mode'].concat(target ? [] : ['#zx-zone']).forEach(sel => { $(sel, m).oninput = $(sel, m).onchange = () => { if (sel === '#zx-text') { fileText = ''; fileName = ''; $('#zx-file', m).value = ''; } stale(); }; });
+  $('#zx-check', m).onclick = async () => {
+    err(); stale();
+    try { plan = await api('POST', '/zones/import/preview', req()); } catch (e) { err(e.message); return; }
+    $('#zx-preview', m).innerHTML = plan.zones.map(zonePlanHtml).join('');
+    const t = plan.totals, ok = plan.zones.some(z => !z.error && (z.add_count || z.create || z.delete_count));
+    $('#zx-go', m).disabled = !ok;
+    $('#zx-go', m).textContent = ok ? `Import ${t.add_count} record${t.add_count === 1 ? '' : 's'}${t.delete_count ? `, delete ${t.delete_count}` : ''}` : 'Nothing to import';
+  };
+  $('#zx-go', m).onclick = async e => {
+    if (!plan) return;
+    if (plan.totals.delete_count && !confirm(`Delete ${plan.totals.delete_count} existing manual record(s) and replace them with the file?`)) return;
+    e.target.disabled = true;
+    try {
+      const r = await api('POST', '/zones/import', req());
+      close();
+      toast(r.zones.map(z => `${z.zone}: ${z.added} added${z.deleted ? `, ${z.deleted} deleted` : ''}${z.created ? ' (new zone)' : ''}`).join('; ') || 'Nothing imported');
+      route();
+    } catch (x) { err(x.message); e.target.disabled = false; }
+  };
+}
+function zonePlanHtml(p) {
+  if (p.error) return `<div class="zx-zone"><h4>${esc(p.zone || 'Zone')}</h4><div class="zx-bad">${esc(p.error)}</div></div>`;
+  const more = (n, shown) => n > shown ? `<div class="muted zx-more">and ${n - shown} more</div>` : '';
+  return `<div class="zx-zone"><h4>${esc(p.zone)} ${p.create ? '<span class="tag on">new zone</span>' : '<span class="tag">existing zone</span>'}</h4>
+    <div class="zx-sum"><b>${p.add_count}</b> to add &middot; <b>${p.skip_count}</b> skipped${p.delete_count ? ` &middot; <b class="zx-del">${p.delete_count}</b> existing to delete` : ''}
+      ${p.create ? ` &middot; primary NS <span class="mono">${esc(p.meta.primary_ns)}</span>, TTL ${p.meta.ttl}` : ''}</div>
+    ${p.add_count ? `<details open><summary>Records to add</summary><div class="zx-list">${table([{ k: 'name', label: 'Name', cls: 'mono' }, { k: 'type', label: 'Type' },
+      { k: 'value', label: 'Value', cls: 'mono', fmt: v => `<span class="clip" title="${esc(v)}">${esc(v)}</span>` }, { k: 'ttl', label: 'TTL', fmt: v => v ?? '<span class="muted">zone</span>' }], p.add)}</div>${more(p.add_count, p.add.length)}</details>` : ''}
+    ${p.skip_count ? `<details open><summary>Skipped</summary><div class="zx-list">${table([{ k: 'line', label: 'Line', cls: 'mono' },
+      { k: 'text', label: 'Record', cls: 'mono', fmt: v => `<span class="clip" title="${esc(v)}">${esc(v)}</span>` }, { k: 'reason', label: 'Reason' }], p.skipped)}</div>${more(p.skip_count, p.skipped.length)}</details>` : ''}</div>`;
+}
 async function vZone(id) {
   const [z, recs] = await Promise.all([api('GET', '/zones/' + id), api('GET', `/zones/${id}/records`)]);
   main(head(esc(z.name), `Serial ${z.serial || 'not deployed'} · TTL ${z.ttl} · primary NS ${esc(z.primary_ns)}`,
-    adm(`<button class="btn primary" data-act="add">Add record</button>`) + `<button class="btn" data-act="preview">View zone file</button>`, `<a href="#/dns">DNS zones</a> / ${esc(z.name)}`) +
+    adm(`<button class="btn primary" data-act="add">Add record</button><button class="btn" data-act="import">Import records</button>`) + `<button class="btn" data-act="preview">View zone file</button>
+    <select class="filter zx-export" aria-label="Export"><option value="">Export...</option><option value="/api/v1/zones/${z.id}/export?format=bind">Zone file (BIND)</option>
+      <option value="/api/v1/zones/${z.id}/export?format=bind&amp;dynamic=1">Zone file with DHCP records</option><option value="/api/v1/zones/${z.id}/export?format=csv">CSV</option>
+      <option value="/api/v1/zones/${z.id}/export?format=json">JSON</option></select>`, `<a href="#/dns">DNS zones</a> / ${esc(z.name)}`) +
     `<div class="panel flush"><div style="padding:12px 12px 0"><input class="filter" id="flt" placeholder="Filter records"></div><div id="tbl"></div></div>`);
   const draw = f => {
     const rows = recs.filter(r => !f || [r.name, r.type, r.value, r.comment].join(' ').toLowerCase().includes(f));
@@ -673,6 +740,8 @@ async function vZone(id) {
   on('add', () => recForm());
   on('edit', d => recForm(recs.find(r => String(r.id) === d.id)));
   on('del', async d => { const r = recs.find(x => String(x.id) === d.id); if (confirm(`Delete ${r.type} record ${r.name}?`)) { await api('DELETE', '/records/' + r.id); toast('Record deleted'); route(); } });
+  on('import', () => importZone(z));
+  exportSelect();
   on('preview', async () => {
     const p = await api('GET', '/deploy/preview');
     modal(`<h3>Zone file preview: ${esc(z.name)}</h3><pre class="code">${esc(p.zones[z.name])}</pre><div class="btns"><button class="btn" onclick="this.closest('.modal-bg').remove()">Close</button></div>`, true);

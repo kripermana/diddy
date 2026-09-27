@@ -10,6 +10,10 @@
     python -m diddy cache-stats                   statistik cache DNS BIND
     python -m diddy cache-flush [NAMA] [--tree]   hapus cache DNS: semua, satu nama, atau nama + turunannya
     python -m diddy cache-lookup NAMA [TIPE]      lihat isi cache untuk satu nama (tanpa resolusi baru)
+    python -m diddy zone-export [ZONA] [--format=bind|csv|json] [--dynamic]
+                                                  export satu zona (atau semua zona sebagai JSON) ke stdout
+    python -m diddy zone-import FILE [--zone=NAMA] [--format=...] [--replace] [--dry-run]
+                                                  import zone file BIND, CSV, atau JSON
 """
 import hashlib
 import logging
@@ -175,6 +179,64 @@ def cmd_cache_lookup(name, rtype):
     return 0
 
 
+def cmd_zone_export(name, fmt, dynamic):
+    from .core.errors import ApiError
+    from .db import q
+    from .dns.zone_io import export_all, export_zone
+    with _app().app_context():
+        if not name:
+            sys.stdout.write(export_all())
+            return 0
+        z = q("SELECT id FROM zones WHERE name=?", (name.lower().rstrip("."),), one=True)
+        if not z:
+            print(f"Zona {name} tidak ada", file=sys.stderr)
+            return 1
+        try:
+            text, _fn, _mt = export_zone(z["id"], fmt, dynamic)
+        except ApiError as e:
+            print(f"Gagal: {e}", file=sys.stderr)
+            return 1
+        sys.stdout.write(text)
+        return 0
+
+
+def cmd_zone_import(path, zone, fmt, replace, dry_run):
+    from .audit import changed
+    from .core.errors import ApiError
+    from .dns.zone_io import apply_import, plan_import
+    try:
+        text = sys.stdin.read() if path == "-" else open(path, encoding="utf-8-sig").read()
+    except OSError as e:
+        print(f"Gagal membaca {path}: {e}")
+        return 1
+    with _app().app_context():
+        g.user = CLI_USER
+        try:
+            plan = plan_import(text, fmt, zone, "replace" if replace else "merge", filename=path)
+        except ApiError as e:
+            print(f"Gagal: {e}")
+            return 1
+        for p in plan["zones"]:
+            if p["error"]:
+                print(f"{p['zone'] or '?'}: GAGAL {p['error']}")
+            else:
+                print(f"{p['zone']}: {'zona baru, ' if p['create'] else ''}{p['add_count']} ditambah, "
+                      f"{p['skip_count']} dilewati, {p['delete_count']} dihapus")
+            for sk in p["skipped"][:50]:
+                print(f"  baris {sk['line']}: {sk['text']}  -> {sk['reason']}")
+            if p["skip_count"] > 50:
+                print(f"  ... dan {p['skip_count'] - 50} lagi")
+        if dry_run:
+            print("Dry run: tidak ada yang diubah.")
+            return 0
+        done = apply_import(plan)
+        for z in done:
+            changed("import", f"zone {z['zone']}", dict(z, format=plan["format"], mode=plan["mode"]))
+        print(f"Selesai: {sum(z['added'] for z in done)} record diimport ke {len(done)} zona. Jalankan deploy untuk "
+              "menerapkannya.")
+        return 1 if any(p["error"] for p in plan["zones"]) else 0
+
+
 def cmd_migrate(path, force, src_prefix):
     from .db import init_db, migrate_sqlite
     init_db()
@@ -207,6 +269,15 @@ def main(argv=None):
         return cmd_cache_flush(args[0] if args else None, "--tree" in argv)
     if cmd == "cache-lookup" and len(argv) >= 2:
         return cmd_cache_lookup(argv[1], argv[2] if len(argv) > 2 else "A")
+    if cmd in ("zone-export", "zone-import"):
+        pos = [a for a in argv[1:] if not a.startswith("--")]
+        opt = {a[2:].split("=", 1)[0]: (a.split("=", 1)[1] if "=" in a else True)
+               for a in argv[1:] if a.startswith("--")}
+        if cmd == "zone-export":
+            return cmd_zone_export(pos[0] if pos else None, opt.get("format", "bind"), bool(opt.get("dynamic")))
+        if pos:
+            return cmd_zone_import(pos[0], opt.get("zone") or None, opt.get("format") or None,
+                                   bool(opt.get("replace")), bool(opt.get("dry-run")))
     if cmd in ("version", "--version", "-V"):
         print(f"{NAME} {VERSION} - {SLOGAN}")
         return 0

@@ -111,6 +111,9 @@ if nets:
 if zones:
     call("GET", f"/zones/{zones[0]['id']}")
     call("GET", f"/zones/{zones[0]['id']}/records")
+    for fmt in ("bind", "csv", "json"):
+        call("GET", f"/zones/{zones[0]['id']}/export?format={fmt}")
+call("GET", "/zones/export")
 
 section("Resolver, deploy, drift")
 call("GET", "/dns-settings")
@@ -139,6 +142,11 @@ if args.write:
                                        "domain_name": zone, "comment": "api_test.py"}, expect=201)
         if z and n:
             created.update(zone=z["id"], network=n["id"])
+            zf = f"imp1 IN A 198.18.{o}.21\nimp2 IN CNAME imp1\ncaa IN CAA 0 issue x\n"
+            pv = call("POST", "/zones/import/preview", {"text": zf, "zone_id": z["id"]})
+            if pv and pv["totals"]["add_count"] != 2:
+                RESULTS.append((False, "POST", "/zones/import/preview", 200, 200, 0, "harus 2 record ditambah"))
+            call("POST", "/zones/import", {"text": zf, "zone_id": z["id"]})   # ikut terhapus bersama zonanya
             call("GET", f"/networks/{n['id']}")
             call("PUT", f"/networks/{n['id']}", {"gateway": f"198.18.{o}.1", "dhcp_enabled": True,
                                                  "domain_name": zone, "comment": "api_test.py diubah"})

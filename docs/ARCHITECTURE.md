@@ -2,7 +2,7 @@
 
 *Your DDI Friend*
 
-(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.3.1.
+(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.4.0.
 
 Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4), dan dnsdist (upstream DoT/DoH) dari satu database MySQL atau SQLite. Database adalah sumber kebenaran; file config service selalu dihasilkan dari database, divalidasi, lalu baru ditulis.
 
@@ -10,7 +10,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 
 | Modul | Tanggung jawab |
 |---|---|
-| `__main__.py` | CLI: `serve`, `deploy`, `drift`, `reset-password`, `migrate-sqlite`, `rebase-paths`, `stats`, `cache-stats`, `cache-flush`, `cache-lookup`, `version` |
+| `__main__.py` | CLI: `serve`, `deploy`, `drift`, `reset-password`, `migrate-sqlite`, `rebase-paths`, `stats`, `cache-stats`, `cache-flush`, `cache-lookup`, `zone-import`, `zone-export`, `version` |
 | `web.py` | Flask app factory: registrasi blueprint, error handler, header keamanan, UI statis |
 | `wsgi.py` | Objek `app` untuk server WSGI lain (`waitress-serve diddy.wsgi:app`) |
 | `worker.py` | Thread latar: refresh DDNS dan pemeriksaan drift, jadwal masing-masing |
@@ -20,7 +20,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `core/util.py` | Validasi input (FQDN, IP, MAC), `run()` untuk perintah sistem, util waktu |
 | `core/log.py` | Logger `diddy`, aman dipakai dari thread latar |
 | `core/runtime.py` | State bersama: waktu start, hasil DDNS dan drift terakhir |
-| `db/connection.py` | Koneksi MySQL/SQLite, `q()` baca, `x()` tulis, `state_get/set` |
+| `db/connection.py` | Koneksi MySQL/SQLite, `q()` baca, `x()` tulis, `transaction()` untuk banyak tulisan sekaligus, `state_get/set` |
 | `db/tables.py` | Daftar tabel dan prefix tabel |
 | `db/schema.py` | DDL, penambahan kolom otomatis, inisialisasi, migrasi SQLite ke MySQL |
 | `auth.py` | Login sesi dan HTTP Basic, decorator `@auth`, role admin/read-only |
@@ -35,6 +35,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `dns/zones.py` | Zona, record, validasi, render zone file dan `named.conf.diddy` |
 | `dns/ddns.py` | Record A/PTR dari lease, disisipkan ke blok dinamis zone file |
 | `dns/resolver.py` | Recursion, ACL, forwarder, conditional forwarder, config dnsdist |
+| `dns/zone_io.py` | Import (zone file BIND, CSV, JSON) dengan rencana/pratinjau dan penerapan dalam satu transaksi; export zona |
 | `dns/cache.py` | Cache BIND: validasi dan render pengaturan cache, statistik dari statistics-channel, lookup (`dig +norecurse`), flush (`rndc`) |
 | `dns/routes.py` | Endpoint zona, record, resolver, forwarder, cache DNS, refresh DDNS |
 | `hosts.py` | Host object: DNS + PTR + reservasi DHCP dalam satu objek, import CSV |
@@ -56,6 +57,7 @@ Import hanya boleh mengarah ke lapisan yang sama atau di bawahnya. Aturan ini ya
 4  HTTP              ipam.routes  dhcp.routes  dns.routes  deploy.routes  hosts  users  system
 3  Logika domain     dhcp.leases -> dns.zones -> ipam.networks -> dhcp.kea / dns.resolver
                      dns.cache -> dns.resolver
+                     dns.zone_io -> dns.ddns / dns.zones
                      deploy.drift -> dns.ddns -> deploy.pipeline
                      deploy.services -> dhcp.kea / dns.resolver
 2  Layanan bersama   audit  auth

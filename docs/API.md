@@ -1,6 +1,6 @@
 # Diddy REST API
 
-Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.3.1.
+Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.4.0.
 
 ## Autentikasi
 
@@ -83,6 +83,10 @@ Semua perubahan data hanya tersimpan di database dan menyalakan tanda *pending*.
 | POST | `/drift/repair` | Kembalikan file yang drift |
 | GET, POST | `/users` | Daftar / buat user (dengan `last_login` dari audit log; user read-only hanya melihat dirinya) |
 | PUT, DELETE | `/users/{id}` | Ganti password atau role / hapus user |
+| POST | `/zones/import/preview` | Rencana import tanpa mengubah apa pun. Body: `text` (isi file), `format` (`bind`, `csv`, `json`; kosong = deteksi otomatis), `zone` (nama zona / origin bila file tanpa `$ORIGIN`), `zone_id` (import ke zona yang sudah ada), `mode` (`merge` atau `replace`). Respons per zona: `create`, `add_count`, `skip_count` dengan alasan per baris, `delete_count` |
+| POST | `/zones/import` | Terapkan import dengan body yang sama, dalam satu transaksi; menandai perubahan tertunda |
+| GET | `/zones/{id}/export?format=bind\|csv\|json&dynamic=1` | Export satu zona. `bind` = zone file (record host ikut, record DHCP bila `dynamic=1`); CSV/JSON = record manual |
+| GET | `/zones/export` | Semua zona dan record manualnya dalam satu JSON (backup, bisa diimport kembali) |
 | GET | `/export/{networks,hosts,records,leases,audit}.csv` | Export CSV (`audit.csv` menerima filter yang sama dengan `/audit`) |
 
 ## Contoh

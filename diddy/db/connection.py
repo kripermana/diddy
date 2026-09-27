@@ -1,6 +1,7 @@
 """Koneksi database (MySQL/SQLite) dan helper query."""
 
 import sqlite3
+from contextlib import contextmanager
 
 from flask import g
 
@@ -61,6 +62,39 @@ def x(query, args=()):
     db().commit()
     cur.close()
     return last
+
+
+class _Tx:
+    def __init__(self, cur):
+        self.cur = cur
+
+    def x(self, query, args=()):
+        self.cur.execute(sql(query), args)
+        return self.cur.lastrowid
+
+    def many(self, query, rows):
+        if rows:
+            self.cur.executemany(sql(query), rows)
+
+
+@contextmanager
+def transaction():
+    """Beberapa perintah tulis sebagai satu kesatuan: semua tersimpan, atau tidak sama sekali.
+
+    Contoh: `with transaction() as t: zid = t.x("INSERT ..."); t.many("INSERT ...", rows)`
+    """
+    con = db()
+    cur = con.cursor()
+    if MYSQL:
+        con.begin()
+    try:
+        yield _Tx(cur)
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        cur.close()
 
 
 def state_get(k, default=None):

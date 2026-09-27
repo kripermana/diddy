@@ -3,7 +3,7 @@
 import json
 import shutil
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 from ..audit import changed
 from ..auth import auth
@@ -14,6 +14,7 @@ from ..db.connection import q, state_set, x
 from ..metrics import RANGES, cache_report
 from .cache import CACHE_DEFAULTS, LOOKUP_TYPES, cache_flush, cache_lookup, cache_stats, validate_cache_settings
 from .ddns import ddns_refresh, dynamic_records
+from .zone_io import apply_import, export_all, export_zone, plan_import, preview
 from .resolver import dns_settings, recursion_acl, validate_dns_settings, validate_forwarder
 from .zones import derived_records, get_zone, is_reverse, rel, validate_record, validate_zone, zone_records
 
@@ -66,6 +67,51 @@ def api_zone(zid):
         z = get_zone(zid)
     z["reverse"] = is_reverse(z["name"])
     return jsonify(z)
+
+
+def _import_plan():
+    d = body()
+    return plan_import(d.get("text") or "", d.get("format") or None, (d.get("zone") or "").strip() or None,
+                       d.get("mode") or "merge", d.get("zone_id") or None, d.get("filename") or "")
+
+
+@bp.post("/api/v1/zones/import/preview")
+@auth
+def api_zone_import_preview():
+    """Rencana import tanpa mengubah apa pun: record yang ditambah, dilewati (dengan alasan), dan dihapus."""
+    return jsonify(preview(_import_plan()))
+
+
+@bp.post("/api/v1/zones/import")
+@auth
+def api_zone_import():
+    plan = _import_plan()
+    bad = [p for p in plan["zones"] if p["error"]]
+    if bad and len(bad) == len(plan["zones"]):
+        raise ApiError("; ".join(f"{p['zone'] or '?'}: {p['error']}" for p in bad))
+    done = apply_import(plan)
+    for z in done:
+        changed("import", f"zone {z['zone']}", dict(z, format=plan["format"], mode=plan["mode"]))
+    return jsonify(ok=True, zones=done, errors=[{"zone": p["zone"], "error": p["error"]} for p in bad])
+
+
+def _download(text, filename, mimetype):
+    return Response(text, mimetype=mimetype, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@bp.get("/api/v1/zones/export")
+@auth
+def api_zones_export():
+    """Semua zona dan record manualnya dalam satu file JSON (backup; bisa diimport kembali)."""
+    return _download(export_all(), "diddy-zones.json", "application/json")
+
+
+@bp.get("/api/v1/zones/<int:zid>/export")
+@auth
+def api_zone_export(zid):
+    text, filename, mimetype = export_zone(zid, request.args.get("format", "bind"),
+                                           request.args.get("dynamic") in ("1", "true", "yes"))
+    return _download(text, filename, mimetype)
 
 
 @bp.get("/api/v1/zones/<int:zid>/records")

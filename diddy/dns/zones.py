@@ -98,13 +98,13 @@ def zone_records(z):
     return sorted(recs, key=key)
 
 
-def validate_record(d, rid=None):
-    z = get_zone(d.get("zone_id"))
+def normalize_record(zone_name, d):
+    """Validasi nama, tipe, nilai, dan TTL satu record terhadap nama zona, tanpa cek bentrok di database."""
     name = (d.get("name") or "@").strip().lower().rstrip(".")
-    if name in ("", "@", z["name"]):
+    if name in ("", "@", zone_name):
         name = "@"
-    elif name.endswith("." + z["name"]):
-        name = name[: -(len(z["name"]) + 1)]
+    elif name.endswith("." + zone_name):
+        name = name[: -(len(zone_name) + 1)]
     if name != "@" and not LABEL_RE.match(name):
         raise ApiError(f"Invalid record name: '{name}'")
     t = (d.get("type") or "").upper()
@@ -132,16 +132,6 @@ def validate_record(d, rid=None):
             raise ApiError("TXT value must be 1-4000 characters")
     if t == "CNAME" and name == "@":
         raise ApiError("CNAME is not allowed at the zone apex (@)")
-    others = q("SELECT type FROM records WHERE zone_id=? AND name=? AND id<>?", (z["id"], name, rid or 0))
-    fq = z["name"] if name == "@" else f"{name}.{z['name']}"
-    host_same = q("SELECT 1 FROM hosts WHERE fqdn=? AND configure_dns=1", (fq,), one=True)
-    if t == "CNAME" and (others or host_same):
-        raise ApiError(f"'{fq}' already has other records; a CNAME must be the only record for a name")
-    if any(o["type"] == "CNAME" for o in others):
-        raise ApiError(f"'{fq}' is a CNAME; no other records can share that name")
-    if q("SELECT 1 FROM records WHERE zone_id=? AND name=? AND type=? AND value=? AND id<>?",
-         (z["id"], name, t, v, rid or 0), one=True):
-        raise ApiError("An identical record already exists", 409)
     ttl = d.get("ttl")
     if ttl in (None, ""):
         ttl = None
@@ -152,8 +142,24 @@ def validate_record(d, rid=None):
             raise ApiError("TTL must be a number")
         if not 0 <= ttl <= 2147483647:
             raise ApiError("TTL out of range")
-    return {"zone_id": z["id"], "name": name, "type": t, "value": v, "ttl": ttl,
-            "comment": str(d.get("comment") or "")[:200], "_fq": fq}
+    fq = zone_name if name == "@" else f"{name}.{zone_name}"
+    return {"name": name, "type": t, "value": v, "ttl": ttl, "comment": str(d.get("comment") or "")[:200], "_fq": fq}
+
+
+def validate_record(d, rid=None):
+    z = get_zone(d.get("zone_id"))
+    o = normalize_record(z["name"], d)
+    name, t, v, fq = o["name"], o["type"], o["value"], o["_fq"]
+    others = q("SELECT type FROM records WHERE zone_id=? AND name=? AND id<>?", (z["id"], name, rid or 0))
+    host_same = q("SELECT 1 FROM hosts WHERE fqdn=? AND configure_dns=1", (fq,), one=True)
+    if t == "CNAME" and (others or host_same):
+        raise ApiError(f"'{fq}' already has other records; a CNAME must be the only record for a name")
+    if any(r["type"] == "CNAME" for r in others):
+        raise ApiError(f"'{fq}' is a CNAME; no other records can share that name")
+    if q("SELECT 1 FROM records WHERE zone_id=? AND name=? AND type=? AND value=? AND id<>?",
+         (z["id"], name, t, v, rid or 0), one=True):
+        raise ApiError("An identical record already exists", 409)
+    return dict(o, zone_id=z["id"])
 
 
 def dot(v):
@@ -179,7 +185,8 @@ def render_zone(z, dyn=None):
     lines = [fmt_rr("@", None, "NS", z["primary_ns"])]
     lines += [fmt_rr(r["name"], r["ttl"], r["type"], r["value"]) for r in zone_records(z)]
     dyn_block = "\n".join(fmt_rr(r["name"], r["ttl"], r["type"], r["value"]) for r in (dyn or []))
-    rname = z["admin_email"].replace("@", ".")
+    local, _, domain = z["admin_email"].partition("@")
+    rname = local.replace(".", "\\.") + "." + domain   # titik di bagian lokal email wajib di-escape (RFC 1035)
     sig = "\n".join(lines) + "\n" + dyn_block + f"|{z['ttl']}|{z['primary_ns']}|{rname}"
     h = hashlib.sha256(sig.encode()).hexdigest()
     serial = z["serial"] or 0
