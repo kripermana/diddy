@@ -1,6 +1,6 @@
 # Diddy: Prasyarat, Instalasi, dan Troubleshooting
 
-Dokumen ini untuk Diddy 2.3.1 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
+Dokumen ini untuk Diddy 2.4.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
 
 ---
 
@@ -310,6 +310,28 @@ Script mendeteksi `/opt/liteddi` dan otomatis masuk mode migrasi:
 | service `liteddi`, perintah `liteddi` | service `diddy`, perintah `diddy` |
 
 Database MySQL tidak diganti namanya: nama database, user, password, dan prefix tabel tetap seperti sebelumnya. Jumlah data dibandingkan sebelum dan sesudah migrasi; bila berbeda, atau service tidak mau start, semuanya dikembalikan ke LiteDDI seperti semula. `install.sh` menolak jalan selama `/opt/liteddi` masih ada, supaya tidak ada dua instalasi berdampingan.
+
+### 2.10c Migrasi zona dari server DNS lain
+
+Zona dari BIND, Infoblox, atau Windows DNS bisa dipindah lewat zone file (RFC 1035). Ambil zone file-nya:
+
+| Sumber | Cara mendapatkan zone file |
+|---|---|
+| BIND | File di `/var/lib/bind/` atau `/etc/bind/`; untuk zona dinamis/binary: `named-compilezone -f raw -F text -o corp.local.zone corp.local FILE` |
+| Server mana pun yang mengizinkan transfer | `dig @SERVER corp.local AXFR > corp.local.zone` |
+| Infoblox | *Data Management > DNS > Zones*, pilih zona, *Export* ke format BIND |
+| Windows DNS | `dnscmd /ZoneExport corp.local corp.local.dns` (file ada di `%SystemRoot%\System32\dns`) |
+
+Lalu di Diddy: **DNS > Import zone**, pilih file, klik **Preview**. Periksa daftar *Skipped*: tipe yang belum didukung Diddy (mis. CAA, DNSSEC), `$INCLUDE`, nama di luar zona, dan bentrok CNAME tidak ikut diimport. Klik **Import**, lalu **Review and deploy**. Dari CLI:
+
+```bash
+sudo diddy zone-import corp.local.zone --dry-run
+sudo diddy zone-import corp.local.zone && sudo diddy deploy --force
+```
+
+Record SOA dipakai untuk primary NS, email admin, dan TTL zona baru. NS untuk primary name server ditulis Diddy sendiri, sehingga tidak diimport sebagai record. Nama host yang sudah punya host object di Diddy tidak diimport ganda.
+
+Untuk backup, **DNS > Export... > All zones (JSON backup)** atau `sudo diddy zone-export > zones.json`. File itu bisa diimport kembali ke Diddy mana pun.
 
 ### 2.11 File dan lokasi penting
 

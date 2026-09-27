@@ -2,6 +2,22 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.4.0]
+### Ditambahkan
+- **Import dan export zona DNS** beserta record-nya:
+  - Format **zone file BIND/RFC 1035** (untuk migrasi dari BIND, Infoblox, Windows DNS), **CSV** (`name,type,value,ttl,comment`, kolom `zone` opsional untuk banyak zona), dan **JSON** (backup Diddy ke Diddy).
+  - Parser zone file mengenali `$ORIGIN`, `$TTL`, TTL berunit (`1h`, `1d`), owner kosong, kurung multi-baris, TXT bertanda kutip, dan nama relatif maupun absolut. SOA dipakai untuk primary NS, email admin, dan TTL zona baru.
+  - **Pratinjau sebelum import**: jumlah record yang ditambah, dilewati beserta alasannya (tipe tidak didukung, `$INCLUDE`, nama di luar zona, bentrok CNAME, sudah ada, sudah dari host object), dan yang dihapus.
+  - Mode **merge** (record lama dipertahankan, duplikat dilewati) atau **replace** (semua record manual zona diganti). Semua ditulis dalam satu transaksi; 20.000 record selesai di bawah satu detik.
+  - Import ke zona baru (dibuat otomatis) atau ke zona yang sudah ada. Record dari host object dan DDNS tidak pernah diimport sebagai record manual, dan blok DDNS di zone file export Diddy dilewati.
+  - Export per zona: zone file (opsional termasuk record DHCP), CSV, JSON. Export semua zona sebagai satu JSON yang bisa diimport kembali.
+  - UI: tombol *Import zone* dan menu *Export* di halaman DNS zones, *Import records* dan *Export* di halaman zona.
+  - CLI: `diddy zone-import FILE [--zone=NAMA] [--format=...] [--replace] [--dry-run]` dan `diddy zone-export [ZONA] [--format=...] [--dynamic]`.
+- Endpoint `/zones/import/preview`, `/zones/import`, `/zones/{id}/export`, `/zones/export`.
+- `tools/dhcp_sim.py`: simulator klien DHCP untuk lab (Scapy) dengan MAC dan hostname acak. Skenario sanity, reservation, weird hostname, duplicate, fill, exhaust, release, dan expire; hasil dicek ke DNS (dig) dan ke API Diddy. Config INI (`--example-config`), bisa ditimpa lewat opsi command line.
+### Diperbaiki
+- Email SOA dengan titik di bagian lokal (mis. `host.master@corp.local`) ditulis tanpa escape di zone file, sehingga BIND membacanya sebagai `host@master.corp.local`. Kini ditulis `host\\.master.corp.local.` sesuai RFC 1035.
+
 ## [2.3.1]
 ### Ditambahkan
 - Tombol **Services** di samping tombol Health (System → Information dan halaman Health, khusus admin):
