@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Diddy 2.3.0 API",
+    "name": "Diddy 2.4.0 API",
     "description": "REST API Diddy: IPAM, DNS, DHCP, resolver, deploy.\n\nIsi variabel collection `baseUrl`, `username`, `password`, lalu jalankan folder 0 sampai 9 dengan Collection Runner. Objek uji dibuat di network 198.18.X.0/24 dan zona apitest-X.invalid, lalu dihapus lagi di folder 9.\n\n(c) 2026 kripermana, MIT License.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -1183,6 +1183,44 @@
           }
         },
         {
+          "name": "Export zona (zone file)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /zones/{{zoneId}}/export -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/zones/{{zoneId}}/export?format=bind",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "zones",
+                "{{zoneId}}",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "bind"
+                }
+              ]
+            },
+            "description": "format: bind, csv, json. dynamic=1 ikut menyertakan record DHCP di zone file."
+          }
+        },
+        {
           "name": "Ubah zona",
           "event": [
             {
@@ -2257,6 +2295,83 @@
                 "v1",
                 "export",
                 "records.csv"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Pratinjau import zona",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"POST /zones/import/preview -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/zones/import/preview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "zones",
+                "import",
+                "preview"
+              ]
+            },
+            "description": "Tidak mengubah apa pun. Format bind/csv/json dideteksi otomatis; mode merge atau replace.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"$ORIGIN apitest{{octet}}.invalid.\\n$TTL 3600\\nwww IN A 198.18.1.10\\n\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Export semua zona (JSON)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /zones/export -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/zones/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "zones",
+                "export"
               ]
             },
             "description": ""

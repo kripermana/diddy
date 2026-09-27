@@ -33,6 +33,7 @@ Minimal 1 vCPU / 1 GB RAM (MySQL ikut di server yang sama): cocok untuk VM kecil
 | Menu System | System information, konfigurasi (`diddy.conf` read-only, password disembunyikan), user dengan login terakhir, dan audit log dengan pencarian, filter, detail lengkap, serta export CSV |
 | Deteksi drift | Diddy menyimpan salinan tiap file yang ditulisnya, membandingkan berkala dengan file yang dipakai service, mencatat ke audit log, dan bisa mengembalikannya otomatis |
 | Grid status / health | Halaman Health (service, database, config BIND, disk, status deploy, DDNS) dan System information |
+| Import/export zona | Zone file BIND (RFC 1035), CSV, dan JSON dengan pratinjau sebelum import, mode merge atau replace; export per zona atau semua zona |
 | Kendali service | Menu Services: review and deploy, reload, restart (dengan konfirmasi), shut down (konfirmasi + password) dan start BIND/Kea/dnsdist tanpa mematikan Diddy |
 | Tampilan | 5 tema: Light, Dark, Dracula, Nord, Solarized; pilihan tersimpan di browser |
 | CSV Import/Export | Import host, export network/host/record/lease |
@@ -194,6 +195,9 @@ sudo diddy drift --repair
 sudo diddy reset-password admin 'PasswordBaru123'
 sudo diddy cache-stats
 sudo diddy cache-flush example.com --tree
+sudo diddy zone-import corp.local.zone --dry-run      # lihat dulu apa yang akan diimport
+sudo diddy zone-import corp.local.zone                # import zone file BIND, CSV, atau JSON
+sudo diddy zone-export corp.local > corp.local.zone   # --format=csv|json, tanpa nama zona = semua zona (JSON)
 sudo diddy version
 ```
 

@@ -413,3 +413,17 @@ pre.code.wrap { white-space: pre-wrap; word-break: break-word; }
 .svc-warn { color: var(--danger); }
 .form-intro p { margin: 0 0 8px; }
 #svc-down { display: flex; align-items: center; justify-content: center; gap: 14px; background: var(--danger); color: #fff; padding: 8px 20px; font-weight: 600; }
+
+/* import / export zona (awalan zx- supaya unik) */
+select.zx-export { width: auto; }
+.zx-form { display: grid; gap: 10px; }
+.zx-form textarea { font: 12.5px/1.5 var(--mono); }
+.zx-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.zx-zone { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 14px; }
+.zx-zone h4 { margin: 0 0 6px; font-size: 15px; }
+.zx-sum { font-size: 13.5px; margin-bottom: 8px; }
+.zx-del, .zx-bad { color: var(--danger); }
+.zx-zone details { margin-top: 6px; } .zx-zone summary { cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.zx-list { max-height: 260px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; }
+.zx-list .clip { max-width: 320px; }
+.zx-more { font-size: 12.5px; margin-top: 4px; }

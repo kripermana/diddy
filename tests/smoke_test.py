@@ -348,6 +348,72 @@ check(hist["hits"] == 100 and hist["misses"] == 15 and hist["hit_ratio"] == 87.0
       and all(p["v"] is None or 0 <= p["v"] <= 100 for p in hist["series"]),
       f"DNS cache: hit ratio historis, restart BIND ditangani {hist}")
 
+# ------------------------------------------------------------------ import / export zona
+ZF = """$ORIGIN contoso.test.
+$TTL 1h
+@   IN  SOA ns1.contoso.test. host\\.master.contoso.test. ( 2026092701 3600 900 1209600 300 )
+    IN  NS  ns1
+    IN  NS  ns2.contoso.test.
+    IN  MX  10 mail
+@   IN TXT "v=spf1 mx -all"
+ns1     IN A 10.0.0.1
+ns2 300 IN A 10.0.0.2
+mail    IN A 10.0.0.25
+        IN AAAA 2001:db8::25
+www     IN CNAME web
+web  1d IN A 10.0.0.80
+_sip._tcp IN SRV 10 5 5060 sip.contoso.test.
+dkim._domainkey IN TXT ( "v=DKIM1; k=rsa; "
+        "p=MIIBIjANBg" )
+caa IN CAA 0 issue "letsencrypt.org"
+www IN A 10.0.0.81
+outside.example.org. IN A 1.2.3.4
+$INCLUDE other.zone
+"""
+pv = call("post", "/zones/import/preview", {"text": ZF})
+zp = pv["zones"][0]
+check(zp["zone"] == "contoso.test" and zp["create"] and zp["add_count"] == 11 and zp["skip_count"] == 5,
+      f"import zona: pratinjau zone file ({zp['add_count']} tambah, {zp['skip_count']} lewati)")
+check(zp["meta"]["admin_email"] == "host.master@contoso.test" and zp["meta"]["ttl"] == 3600,
+      "import zona: SOA jadi primary NS, email, dan TTL zona")
+reasons = " | ".join(x["reason"] for x in zp["skipped"])
+check(all(k in reasons for k in ("CAA", "$INCLUDE", "primary name server", "is a CNAME", "outside zone")),
+      "import zona: alasan dilewati jelas " + reasons)
+check(not [z for z in call("get", "/zones") if z["name"] == "contoso.test"], "import zona: pratinjau tidak mengubah apa pun")
+r = call("post", "/zones/import", {"text": ZF})
+czid = r["zones"][0]["id"]
+recs = {(x["name"], x["type"], x["value"], x["ttl"]) for x in call("get", f"/zones/{czid}/records")}
+check(("web", "A", "10.0.0.80", 86400) in recs and ("dkim._domainkey", "TXT", "v=DKIM1; k=rsa; p=MIIBIjANBg", None) in recs
+      and ("mail", "AAAA", "2001:db8::25", None) in recs, "import zona: record, TTL, owner kosong, TXT multi-baris")
+check(call("get", "/me")["pending"], "import zona: menandai perubahan tertunda")
+exp = c.get(f"/api/v1/zones/{czid}/export").data.decode()
+check("host\\.master.contoso.test." in exp and "_sip._tcp" in exp, "export zone file: SOA email ter-escape dan record ada")
+check(call("post", "/zones/import/preview", {"text": exp})["totals"]["add_count"] == 0,
+      "export lalu import ulang (merge): tidak ada duplikat")
+rp = call("post", "/zones/import/preview", {"text": exp, "mode": "replace"})["totals"]
+check(rp["delete_count"] == 11 and rp["add_count"] == 11, "import replace: hapus lalu tambah ulang")
+csv_exp = c.get(f"/api/v1/zones/{czid}/export?format=csv").data.decode()
+check(csv_exp.startswith("name,type,value,ttl,comment") and "web,A,10.0.0.80,86400," in csv_exp, "export CSV zona")
+call("post", "/records", {"zone_id": czid, "name": "extra", "type": "A", "value": "10.0.0.99"})
+r = call("post", "/zones/import", {"text": csv_exp, "zone_id": czid, "mode": "replace"})
+check(r["zones"][0]["deleted"] == 12 and not any(x["name"] == "extra" for x in call("get", f"/zones/{czid}/records")),
+      "import CSV replace ke zona yang ada")
+js_all = c.get("/api/v1/zones/export").data.decode()
+call("delete", f"/zones/{czid}")
+r = call("post", "/zones/import", {"text": js_all})
+check(any(z["zone"] == "contoso.test" and z["created"] and z["added"] == 11 for z in r["zones"]),
+      "backup JSON semua zona: zona yang dihapus kembali utuh")
+call("post", "/zones/import/preview", {"text": ""}, expect=400, label="import: file kosong ditolak")
+call("post", "/zones/import/preview", {"text": "x", "format": "xml"}, expect=400, label="import: format salah ditolak")
+call("post", "/zones/import/preview", {"text": "www IN A 1.2.3.4"}, label="import: tanpa nama zona -> error per zona")
+check("Zone name unknown" in (call("post", "/zones/import/preview", {"text": "www IN A 1.2.3.4"})["zones"][0]["error"] or ""),
+      "import: nama zona wajib bila file tanpa $ORIGIN/SOA")
+cz = [z for z in call("get", "/zones") if z["name"] == "corp.local"][0]
+call("post", "/zones/import/preview", {"text": js_all, "zone_id": cz["id"]}, expect=400,
+     label="import: file zona lain ke zona tujuan ditolak")
+hp = call("post", "/zones/import/preview", {"text": "host1 IN A 10.10.1.50\n", "zone_id": cz["id"]})["zones"][0]
+check(hp["add_count"] + hp["skip_count"] == 1, "import: record host object dilewati atau ditambah sekali")
+
 # ------------------------------------------------------------------ kendali service (Services: reload/restart/stop/start)
 st = call("get", "/services")
 check([s["key"] for s in st["services"]][-2:] == ["dns", "dhcp"] and not st["stopped"], "services: daftar service dikelola")
@@ -413,6 +479,9 @@ call("put", "/dashboard/layout?board=overview", {"widgets": [{"id": "health", "s
      label="user read-only boleh menyimpan layout dashboard miliknya")
 call("get", "/networks")
 call("post", "/services/reload", expect=403, label="user read-only tidak bisa reload service")
+call("post", "/zones/import", {"text": "x IN A 1.2.3.4", "zone": "x.local"}, expect=403,
+     label="user read-only tidak bisa import zona")
+check(c.get("/api/v1/zones/export").status_code == 200, "user read-only boleh export zona")
 call("post", "/services/stop", {"password": "viewer123"}, expect=403, label="user read-only tidak bisa mematikan service")
 
 # ------------------------------------------------------------------ CLI
@@ -421,6 +490,18 @@ cli = subprocess.run([sys.executable, "-m", "diddy", "deploy"], env=env, capture
 check(cli.returncode == 0 and "Deploy berhasil" in cli.stdout, "CLI deploy")
 cli = subprocess.run([sys.executable, "-m", "diddy", "drift"], env=env, capture_output=True, text=True, cwd=ROOT)
 check(cli.returncode == 0, "CLI drift: bersih " + (cli.stdout + cli.stderr)[-600:] if cli.returncode else "CLI drift: bersih")
+zfile = os.path.join(TMP, "cli.zone")
+with open(zfile, "w") as f:
+    f.write("$ORIGIN cli.test.\n$TTL 300\n@ IN SOA ns1.cli.test. hostmaster.cli.test. 1 3600 900 1209600 300\n"
+            "ns1 IN A 10.9.9.1\nwww IN A 10.9.9.2\n")
+cli = subprocess.run([sys.executable, "-m", "diddy", "zone-import", zfile, "--dry-run"], env=env, capture_output=True,
+                     text=True, cwd=ROOT)
+check(cli.returncode == 0 and "zona baru, 2 ditambah" in cli.stdout and "Dry run" in cli.stdout,
+      "CLI zone-import --dry-run " + cli.stdout[-300:])
+cli = subprocess.run([sys.executable, "-m", "diddy", "zone-import", zfile], env=env, capture_output=True, text=True, cwd=ROOT)
+cli2 = subprocess.run([sys.executable, "-m", "diddy", "zone-export", "cli.test", "--format=csv"], env=env,
+                      capture_output=True, text=True, cwd=ROOT)
+check(cli.returncode == 0 and "www,A,10.9.9.2" in cli2.stdout, "CLI zone-import lalu zone-export " + cli2.stdout[-200:])
 cli = subprocess.run([sys.executable, "-m", "diddy", "version"], env=env, capture_output=True, text=True, cwd=ROOT)
 check(cli.stdout.startswith("Diddy "), "CLI version")
 cli = subprocess.run([sys.executable, "-m", "diddy", "cache-flush", "example.com", "--tree"], env=env,
