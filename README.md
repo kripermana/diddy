@@ -131,9 +131,9 @@ Endpoint utama: `networks`, `networks/<id>/ipmap`, `networks/<id>/next_available
 
 Jangan edit file di atas secara manual; semua ditimpa saat deploy.
 
-## Melanjutkan pengembangan dengan Claude Code
+## Pengembangan
 
-`CLAUDE.md` berisi konteks proyek (konvensi, cara menguji, invarian, jebakan, backlog) dan dibaca otomatis oleh Claude Code saat dibuka di folder ini, misalnya lewat ekstensi Claude Code di VS Code. Skill proyek ada di `.claude/skills/`: `/uji-diddy`, `/rilis-diddy`, `/uji-upgrade`.
+Konvensi kode, cara menguji, invarian, jebakan yang pernah terjadi, checklist rilis, dan uji upgrade ada di [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Riwayat versi dan GitHub
 
@@ -147,7 +147,7 @@ git remote add origin git@github.com:<username>/diddy.git
 git push -u origin main --tags
 ```
 
-Setiap push ke GitHub menjalankan lint dan `tests/smoke_test.py` lewat GitHub Actions (`.github/workflows/ci.yml`).
+Tidak ada CI otomatis: jalankan lint dan `tests/smoke_test.py` secara lokal sebelum push (lihat `docs/DEVELOPMENT.md`).
 
 ## Upgrade
 

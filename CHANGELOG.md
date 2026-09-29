@@ -3,6 +3,9 @@
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [2.4.0]
+### Diubah
+- Workflow GitHub Actions dihapus; verifikasi dijalankan lokal (lihat `docs/DEVELOPMENT.md`).
+- Panduan developer (konvensi, cara menguji, invarian, checklist rilis, uji upgrade) dipindah ke `docs/DEVELOPMENT.md`.
 ### Ditambahkan
 - **Import dan export zona DNS** beserta record-nya:
   - Format **zone file BIND/RFC 1035** (untuk migrasi dari BIND, Infoblox, Windows DNS), **CSV** (`name,type,value,ttl,comment`, kolom `zone` opsional untuk banyak zona), dan **JSON** (backup Diddy ke Diddy).
@@ -72,7 +75,6 @@ Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama Lit
 - Perintah CLI `diddy cache-stats`, `diddy cache-flush [NAMA] [--tree]`, `diddy cache-lookup NAMA [TIPE]`.
 - Config `bind_local_addr` (default `127.0.0.1`): alamat BIND yang ditanya untuk lookup cache.
 - Lookup cache mengenali jawaban negatif yang ter-cache (NXDOMAIN dan NODATA) dari record SOA di bagian authority, lengkap dengan sisa TTL negatifnya.
-- Skill Claude Code proyek (`.claude/skills/`) dan bagian README-nya ikut disertakan.
 
 ## [2.1.0]
 ### Ditambahkan
