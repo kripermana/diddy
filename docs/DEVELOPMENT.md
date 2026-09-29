@@ -121,7 +121,7 @@ Catat kedua jalur beserta buktinya, termasuk versi awal mana yang diuji dan mana
 
 ## Log error BIND (halaman DNS errors)
 `diddy/dns/errlog.py` membaca log yang ditulis BIND lewat blok `logging` di `named.conf.diddy`. Pola barisnya diambil
-dari BIND 9.18 (Ubuntu 24.04) dan disimpan sebagai fixture di `tests/fixtures/bind-errors.log`:
+dari BIND 9.18 (Ubuntu 24.04) dan disimpan sebagai fixture di `tests/fixtures/bind-errors.txt`:
 - `query-errors`: `query failed (failure) for NAME/IN/TYPE` (BIND 9.18 menulis `failure`, bukan `SERVFAIL`).
   Baris `fetch completed` (debug 2) tidak muncul, jadi alasan dan server diambil dari `lame-servers`.
 - `lame-servers`: `<alasan> resolving 'NAME/TYPE/IN': IP#port`.

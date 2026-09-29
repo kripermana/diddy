@@ -1,0 +1,13 @@
+29-Sep-2026 17:13:06.040 lame-servers: info: SERVFAIL unexpected RCODE resolving './NS/IN': 202.12.27.33#53
+29-Sep-2026 17:13:06.044 lame-servers: info: SERVFAIL unexpected RCODE resolving './NS/IN': 170.247.170.2#53
+29-Sep-2026 17:13:06.044 lame-servers: info: SERVFAIL unexpected RCODE resolving './NS/IN': 192.33.4.12#53
+29-Sep-2026 17:13:07.256 lame-servers: info: timed out resolving './DNSKEY/IN': 202.12.27.33#53
+29-Sep-2026 17:13:08.464 lame-servers: info: timed out resolving './DNSKEY/IN': 170.247.170.2#53
+29-Sep-2026 17:13:20.100 lame-servers: info: connection refused resolving 'www.dead.test/A/IN': 192.0.2.1#53
+29-Sep-2026 17:13:20.100 query-errors: debug 1: client @0x7fa164019558 127.0.0.1#53496 (www.dead.test): query failed (failure) for www.dead.test/IN/A at query.c:7899
+29-Sep-2026 17:13:20.120 lame-servers: info: connection refused resolving 'x.closed.test/A/IN': 10.151.10.2#5300
+29-Sep-2026 17:13:20.120 query-errors: debug 1: client @0x7fa15c007658 127.0.0.1#53837 (x.closed.test): query failed (failure) for x.closed.test/IN/A at query.c:7899
+29-Sep-2026 17:13:20.180 lame-servers: info: SERVFAIL unexpected RCODE resolving 'example.com/A/IN': 192.33.4.12#53
+29-Sep-2026 17:13:20.184 lame-servers: info: SERVFAIL unexpected RCODE resolving 'example.com/A/IN': 192.112.36.4#53
+29-Sep-2026 17:13:20.220 query-errors: debug 1: client @0x7fa164019558 127.0.0.1#48546 (example.com): query failed (failure) for example.com/IN/A at query.c:7899
+29-Sep-2026 17:13:20.244 security: info: client @0x7fa16529c4a8 10.151.10.254#38028 (google.com): query (cache) 'google.com/A/IN' denied (allow-query-cache did not match)

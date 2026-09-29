@@ -421,7 +421,7 @@ import diddy.dns.errlog as _el  # noqa: E402
 ELOG = os.path.join(TMP, "named", "diddy-errors.log")
 os.makedirs(os.path.dirname(ELOG), exist_ok=True)
 _stamp = time.strftime("%d-%b-%Y %H:%M:%S.000")
-FIX = [_re.sub(r"^\S+ \S+", _stamp, ln) for ln in open(os.path.join(ROOT, "tests", "fixtures", "bind-errors.log"))]
+FIX = [_re.sub(r"^\S+ \S+", _stamp, ln) for ln in open(os.path.join(ROOT, "tests", "fixtures", "bind-errors.txt"))]
 check("channel diddy_errors" in call("get", "/deploy/preview")["named_conf"] and ELOG in call("get", "/deploy/preview")["named_conf"],
       "DNS errors: blok logging BIND dirender")
 de = call("get", "/dns-errors?range=1h")
