@@ -36,6 +36,7 @@ default_admin_email = noc@corp.local
 ddns_refresh_interval = 0
 drift_check_interval = 0
 bind_stats_url = http://127.0.0.1:9
+bind_log_file = {TMP}/named/diddy-errors.log
 """)
     if os.environ.get("TEST_MYSQL"):
         h, u, pw, dbn, *pfx = os.environ["TEST_MYSQL"].split(":")
@@ -414,6 +415,54 @@ call("post", "/zones/import/preview", {"text": js_all, "zone_id": cz["id"]}, exp
 hp = call("post", "/zones/import/preview", {"text": "host1 IN A 10.10.1.50\n", "zone_id": cz["id"]})["zones"][0]
 check(hp["add_count"] + hp["skip_count"] == 1, "import: record host object dilewati atau ditambah sekali")
 
+# ------------------------------------------------------------------ detail error DNS dari log BIND
+import re as _re  # noqa: E402
+import diddy.dns.errlog as _el  # noqa: E402
+ELOG = os.path.join(TMP, "named", "diddy-errors.log")
+os.makedirs(os.path.dirname(ELOG), exist_ok=True)
+_stamp = time.strftime("%d-%b-%Y %H:%M:%S.000")
+FIX = [_re.sub(r"^\S+ \S+", _stamp, ln) for ln in open(os.path.join(ROOT, "tests", "fixtures", "bind-errors.log"))]
+check("channel diddy_errors" in call("get", "/deploy/preview")["named_conf"] and ELOG in call("get", "/deploy/preview")["named_conf"],
+      "DNS errors: blok logging BIND dirender")
+de = call("get", "/dns-errors?range=1h")
+check(not de["source"]["exists"] and de["totals"]["servfail"] == 0, "DNS errors: log belum ada -> kosong, bukan error")
+with open(ELOG, "w") as f:
+    f.writelines(FIX)
+de = call("get", "/dns-errors?range=1h")
+check(de["totals"] == {"servfail": 3, "refused": 1, "upstream": 9}, f"DNS errors: baris log BIND 9.18 terbaca {de['totals']}")
+wd = [n for n in de["names"] if n["name"] == "www.dead.test"]
+check(wd and wd[0]["reasons"][0][0] == "connection refused", "DNS errors: SERVFAIL dikaitkan dengan alasan upstream")
+check(any(sv["server"] == "192.0.2.1" and sv["count"] == 1 for sv in de["servers"]), "DNS errors: upstream yang gagal")
+check(sum(p["v"] for p in de["series"]) == 3, "DNS errors: garis waktu")
+rf = call("get", "/dns-errors?range=1h&kind=refused")
+check(rf["clients"] and rf["clients"][0]["client"] == "10.151.10.254" and rf["clients"][0]["allowed"] is False,
+      "DNS errors: klien REFUSED dan status ACL resolver")
+check(call("get", "/dns-errors?range=1h")["totals"]["servfail"] == 3, "DNS errors: dibaca bertahap, tidak dihitung dua kali")
+with open(ELOG, "a") as f:          # rotasi seperti BIND: sisa baris di file lama, lalu file baru
+    f.write(FIX[6])
+os.rename(ELOG, ELOG + ".0")
+with open(ELOG, "w") as f:
+    f.write(FIX[8])
+check(call("get", "/dns-errors?range=1h")["totals"]["servfail"] == 5, "DNS errors: rotasi log tanpa kehilangan/duplikat")
+call("get", "/dns-errors?range=2d", expect=400, label="DNS errors: range salah ditolak")
+call("get", "/dns-errors?kind=nxdomain", expect=400, label="DNS errors: kind salah ditolak")
+_orig = (_el.DRY, _el.run)
+try:
+    _el.DRY = False
+    _el.run = lambda cmd, timeout=60: (True, 'options {\n};\nlogging {\n\tchannel adminlog {\n\t\tsyslog daemon;\n\t};\n};\n')
+    check(_el.logging_conflict(), "DNS errors: blok logging milik admin terdeteksi")
+    check("channel diddy_errors" not in call("get", "/deploy/preview")["named_conf"],
+          "DNS errors: blok Diddy tidak ditulis saat bentrok")
+    check(any(i["name"] == "DNS error log" and i["state"] == "warn" for i in call("get", "/health")["items"]),
+          "DNS errors: health memberi peringatan saat bentrok")
+    _el.run = lambda cmd, timeout=60: (False, "/etc/bind/named.conf:10: 'logging' redefined near 'logging'")
+    check(_el.logging_conflict(), "DNS errors: config rusak karena logging ganda -> blok Diddy dicabut")
+    _el.run = lambda cmd, timeout=60: (True, 'logging {\n\tchannel diddy_errors {\n\t};\n};\n')
+    check(not _el.logging_conflict(), "DNS errors: blok milik Diddy sendiri bukan bentrok")
+finally:
+    _el.DRY, _el.run = _orig
+call("get", "/deploy/preview")
+
 # ------------------------------------------------------------------ kendali service (Services: reload/restart/stop/start)
 st = call("get", "/services")
 check([s["key"] for s in st["services"]][-2:] == ["dns", "dhcp"] and not st["stopped"], "services: daftar service dikelola")
@@ -479,6 +528,7 @@ call("put", "/dashboard/layout?board=overview", {"widgets": [{"id": "health", "s
      label="user read-only boleh menyimpan layout dashboard miliknya")
 call("get", "/networks")
 call("post", "/services/reload", expect=403, label="user read-only tidak bisa reload service")
+call("get", "/dns-errors?range=24h&kind=refused", label="user read-only boleh melihat DNS errors")
 call("post", "/zones/import", {"text": "x IN A 1.2.3.4", "zone": "x.local"}, expect=403,
      label="user read-only tidak bisa import zona")
 check(c.get("/api/v1/zones/export").status_code == 200, "user read-only boleh export zona")
@@ -502,6 +552,10 @@ cli = subprocess.run([sys.executable, "-m", "diddy", "zone-import", zfile], env=
 cli2 = subprocess.run([sys.executable, "-m", "diddy", "zone-export", "cli.test", "--format=csv"], env=env,
                       capture_output=True, text=True, cwd=ROOT)
 check(cli.returncode == 0 and "www,A,10.9.9.2" in cli2.stdout, "CLI zone-import lalu zone-export " + cli2.stdout[-200:])
+cli = subprocess.run([sys.executable, "-m", "diddy", "dns-errors", "--range=1h"], env=env, capture_output=True,
+                     text=True, cwd=ROOT)
+check(cli.returncode == 0 and "www.dead.test" in cli.stdout and "192.0.2.1" in cli.stdout,
+      "CLI dns-errors " + cli.stdout[-300:])
 cli = subprocess.run([sys.executable, "-m", "diddy", "version"], env=env, capture_output=True, text=True, cwd=ROOT)
 check(cli.stdout.startswith("Diddy "), "CLI version")
 cli = subprocess.run([sys.executable, "-m", "diddy", "cache-flush", "example.com", "--tree"], env=env,

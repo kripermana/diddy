@@ -12,6 +12,8 @@
     python -m diddy cache-lookup NAMA [TIPE]      lihat isi cache untuk satu nama (tanpa resolusi baru)
     python -m diddy zone-export [ZONA] [--format=bind|csv|json] [--dynamic]
                                                   export satu zona (atau semua zona sebagai JSON) ke stdout
+    python -m diddy dns-errors [--range=24h] [--kind=servfail|refused]
+                                                  detail SERVFAIL/REFUSED: domain, upstream, klien
     python -m diddy zone-import FILE [--zone=NAMA] [--format=...] [--replace] [--dry-run]
                                                   import zone file BIND, CSV, atau JSON
 """
@@ -179,6 +181,32 @@ def cmd_cache_lookup(name, rtype):
     return 0
 
 
+def cmd_dns_errors(rng, kind):
+    from .dns.errlog import dns_errors_report
+    with _app().app_context():
+        r = dns_errors_report(rng, kind)
+    src = r["source"]
+    if src["conflict"]:
+        print("Catatan: named.conf punya blok logging sendiri; tambahkan channel diddy_errors secara manual.")
+    elif not src["exists"]:
+        print(f"{src['log_file']} belum ada: deploy sekali supaya BIND menulis log error.")
+    t = r["totals"]
+    print(f"{rng}: SERVFAIL {t['servfail']}, REFUSED {t['refused']}, kegagalan upstream {t['upstream']}")
+    print(f"\nTop domain ({kind}):")
+    for n in r["names"][:20]:
+        print(f"  {n['count']:>7}  {n['name']:<45} {', '.join(f'{k} {v}' for k, v in n['reasons'])}")
+    if kind == "servfail":
+        print("\nTop upstream yang gagal:")
+        for s in r["servers"][:15]:
+            print(f"  {s['count']:>7}  {s['server']:<40} {s['role'] or '-':<18} "
+                  f"{', '.join(f'{k} {v}' for k, v in s['reasons'])}")
+    print("\nTop klien:")
+    for c in r["clients"][:15]:
+        extra = "" if "allowed" not in c else ("  (ada di ACL)" if c["allowed"] else "  (tidak ada di ACL resolver)")
+        print(f"  {c['count']:>7}  {c['client']:<40} {', '.join(c['names'])}{extra}")
+    return 0
+
+
 def cmd_zone_export(name, fmt, dynamic):
     from .core.errors import ApiError
     from .db import q
@@ -269,6 +297,9 @@ def main(argv=None):
         return cmd_cache_flush(args[0] if args else None, "--tree" in argv)
     if cmd == "cache-lookup" and len(argv) >= 2:
         return cmd_cache_lookup(argv[1], argv[2] if len(argv) > 2 else "A")
+    if cmd == "dns-errors":
+        opt = dict(a[2:].split("=", 1) for a in argv[1:] if a.startswith("--") and "=" in a)
+        return cmd_dns_errors(opt.get("range", "24h"), opt.get("kind", "servfail"))
     if cmd in ("zone-export", "zone-import"):
         pos = [a for a in argv[1:] if not a.startswith("--")]
         opt = {a[2:].split("=", 1)[0]: (a.split("=", 1)[1] if "=" in a else True)

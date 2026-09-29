@@ -46,6 +46,9 @@ DEFAULTS = {
     "bind_stats_url": "http://127.0.0.1:8053",
     "bind_stats_manage": "true",
     "dns_capacity_qps": "1000",
+    # log error BIND (SERVFAIL, REFUSED, upstream gagal) untuk halaman DNS errors
+    "bind_log_manage": "true",
+    "bind_log_file": "/var/log/named/diddy-errors.log",
     # alamat BIND lokal yang ditanya untuk melihat isi cache (dig +norecurse)
     "bind_local_addr": "127.0.0.1",
     # Diddy database: mysql | sqlite
@@ -105,6 +108,8 @@ META = {
     "bind_stats_url": ("Dashboard statistics", "BIND statistics-channel URL"),
     "bind_stats_manage": ("Dashboard statistics", "Let Diddy add the statistics-channel to named.conf.diddy"),
     "dns_capacity_qps": ("Dashboard statistics", "Queries per second treated as 100% DNS utilization"),
+    "bind_log_manage": ("DNS errors", "Let Diddy add a logging block to named.conf.diddy for the DNS errors page"),
+    "bind_log_file": ("DNS errors", "File BIND writes SERVFAIL, REFUSED and upstream failures to"),
     "db_backend": ("Database", "Diddy database: sqlite or mysql"),
     "mysql_host": ("Database", "MySQL host of the Diddy database"),
     "mysql_port": ("Database", "MySQL port of the Diddy database"),

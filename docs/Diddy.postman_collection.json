@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Diddy 2.4.0 API",
+    "name": "Diddy 2.5.0 API",
     "description": "REST API Diddy: IPAM, DNS, DHCP, resolver, deploy.\n\nIsi variabel collection `baseUrl`, `username`, `password`, lalu jalankan folder 0 sampai 9 dengan Collection Runner. Objek uji dibuat di network 198.18.X.0/24 dan zona apitest-X.invalid, lalu dihapus lagi di folder 9.\n\n(c) 2026 kripermana, MIT License.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -1885,6 +1885,46 @@
                 }
               }
             }
+          }
+        },
+        {
+          "name": "Detail error DNS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /dns-errors -> 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dns-errors?range=24h&kind=servfail",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dns-errors"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "24h"
+                },
+                {
+                  "key": "kind",
+                  "value": "servfail"
+                }
+              ]
+            },
+            "description": "SERVFAIL/REFUSED dari log BIND: top domain, upstream yang gagal, klien. kind: servfail atau refused."
           }
         },
         {

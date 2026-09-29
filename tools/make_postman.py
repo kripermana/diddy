@@ -157,6 +157,8 @@ F = [
             expect=201, save=("forwarderId", "j.id")),
         req("Ubah conditional forwarder", "PUT", "/forwarders/{{forwarderId}}",
             {"domain": "fwd-{{octet}}.invalid", "servers": "192.0.2.53, 192.0.2.54", "policy": "first"}),
+        req("Detail error DNS", "GET", "/dns-errors", query=[("range", "24h"), ("kind", "servfail")],
+            desc="SERVFAIL/REFUSED dari log BIND: top domain, upstream yang gagal, klien. kind: servfail atau refused."),
         req("Status cache DNS", "GET", "/dns-cache", query=[("range", "24h")],
             desc="Statistik cache BIND, hit ratio historis, dan pengaturan cache. Flush ada di folder Z."),
         req("Setting cache salah ditolak", "PUT", "/dns-cache/settings", {"max_cache_size": "1K"}, expect=400),

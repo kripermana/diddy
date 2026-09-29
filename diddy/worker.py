@@ -9,6 +9,7 @@ from .core.runtime import LAST_DDNS, LAST_DRIFT
 from .core.util import now
 from .deploy.drift import drift_repair, drift_report
 from .dns.ddns import ddns_refresh
+from .dns.errlog import collect_errors
 from .metrics import collect
 
 
@@ -29,6 +30,10 @@ def background_worker(app):
                 if miv > 0 and time.time() - last_metrics >= miv:
                     last_metrics = time.time()
                     collect()
+                    try:
+                        collect_errors()
+                    except Exception as e:  # log error DNS tidak boleh menghentikan worker
+                        log.warning("dns errors: %s", e)
                 if iv > 0 and time.time() - last_ddns >= iv:
                     last_ddns = time.time()
                     ch = ddns_refresh()

@@ -14,6 +14,7 @@ from ..db.connection import q, state_set, x
 from ..metrics import RANGES, cache_report
 from .cache import CACHE_DEFAULTS, LOOKUP_TYPES, cache_flush, cache_lookup, cache_stats, validate_cache_settings
 from .ddns import ddns_refresh, dynamic_records
+from .errlog import dns_errors_report
 from .zone_io import apply_import, export_all, export_zone, plan_import, preview
 from .resolver import dns_settings, recursion_acl, validate_dns_settings, validate_forwarder
 from .zones import derived_records, get_zone, is_reverse, rel, validate_record, validate_zone, zone_records
@@ -226,6 +227,19 @@ def api_dns_cache_flush():
 @auth
 def api_dns_cache_lookup():
     return jsonify(cache_lookup(request.args.get("name"), request.args.get("type", "A")))
+
+
+@bp.get("/api/v1/dns-errors")
+@auth
+def api_dns_errors():
+    """Detail SERVFAIL/REFUSED dari log BIND: top domain, upstream, klien, dan garis waktu."""
+    r = request.args.get("range", "24h")
+    if r not in RANGES:
+        raise ApiError(f"range harus salah satu dari: {', '.join(RANGES)}")
+    k = request.args.get("kind", "servfail")
+    if k not in ("servfail", "refused"):
+        raise ApiError("kind harus servfail atau refused")
+    return jsonify(dns_errors_report(r, k))
 
 
 @bp.post("/api/v1/ddns/refresh")

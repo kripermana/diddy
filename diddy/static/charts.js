@@ -172,7 +172,8 @@ const Charts = (() => {
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line-2)" stroke-width="${sw}"/>${arcs}
       <text x="${cx}" y="${cy - 2}" text-anchor="middle" class="donut-total">${fmt(total)}</text>
       <text x="${cx}" y="${cy + 16}" text-anchor="middle" class="axis">${escT(data.center || 'total')}</text></svg>
-      <ul class="legend-list">${items.map((it, i) => `<li><i style="background:${it.color || pal[i % 8]}"></i><span>${escT(it.label)}</span><b>${fmt(it.v)}</b><em>${(it.v * 100 / total).toFixed(1)}%</em></li>`).join('')}</ul></div>`;
+      <ul class="legend-list">${items.map((it, i) => { const inner = `<i style="background:${it.color || pal[i % 8]}"></i><span>${escT(it.label)}</span><b>${fmt(it.v)}</b><em>${(it.v * 100 / total).toFixed(1)}%</em>`;
+        return it.href ? `<li><a class="legend-link" href="${escT(it.href)}" title="Show details">${inner}</a></li>` : `<li>${inner}</li>`; }).join('')}</ul></div>`;
   }
 
   /* Gauge setengah lingkaran. pct 0-100 */

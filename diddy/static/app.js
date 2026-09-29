@@ -172,7 +172,9 @@ const WIDGETS = {
   },
   dns_rcodes: {
     title: 'Response codes', src: ['dns'], render: (D, b) => {
-      Charts.donut(b, { center: 'answers', items: Object.entries(D.dns.rcodes).map(([k, v]) => ({ label: k, v, color: RCODE_COLOR[k] ? cssv(RCODE_COLOR[k]) : undefined })) });
+      Charts.donut(b, { center: 'answers', items: Object.entries(D.dns.rcodes).map(([k, v]) => ({ label: k, v, color: RCODE_COLOR[k] ? cssv(RCODE_COLOR[k]) : undefined,
+        href: k === 'SERVFAIL' || k === 'REFUSED' ? '#/dns-errors/' + k.toLowerCase() : undefined })) });
+      if (b.querySelector('.donut')) b.insertAdjacentHTML('beforeend', '<div class="w-meta dxe-wlink"><a href="#/dns-errors">Why do queries fail?</a></div>');
     }
   },
   dns_qtypes: {
@@ -618,7 +620,7 @@ async function vDns() {
     { k: 'dynamic_count', label: 'From DHCP', fmt: v => v ? `<span class="tag warn">${v}</span>` : '<span class="muted">0</span>' },
     { k: 'primary_ns', label: 'Primary NS' }, { k: 'serial', label: 'Serial', cls: 'mono' }, { k: 'comment', label: 'Comment' }];
   const acts = r => adm(`<button class="lnk" data-act="edit" data-id="${r.id}">Edit</button><button class="lnk danger" data-act="del" data-id="${r.id}">Delete</button>`);
-  main(head('DNS zones', 'Authoritative zones served by BIND on this server', adm(`<button class="btn primary" data-act="add">Add zone</button><button class="btn" data-act="import">Import zone</button>`) + `<a class="btn" href="#/resolver">Resolver &amp; forwarders</a><a class="btn" href="#/dns-cache">DNS cache</a>
+  main(head('DNS zones', 'Authoritative zones served by BIND on this server', adm(`<button class="btn primary" data-act="add">Add zone</button><button class="btn" data-act="import">Import zone</button>`) + `<a class="btn" href="#/resolver">Resolver &amp; forwarders</a><a class="btn" href="#/dns-cache">DNS cache</a><a class="btn" href="#/dns-errors">DNS errors</a>
     <select class="filter zx-export" aria-label="Export"><option value="">Export...</option><option value="/api/v1/zones/export">All zones (JSON backup)</option><option value="/api/v1/export/records.csv">All records (CSV)</option></select>`) +
     `<div class="panel flush"><div style="padding:16px 16px 0"><h2>Forward zones</h2></div>${table(cols, zones.filter(z => !z.reverse), { empty: 'No forward zone yet. Add one, for example corp.local.', actions: acts })}</div>
      <div class="panel flush"><div style="padding:16px 16px 0"><h2>Reverse zones</h2></div>${table(cols, zones.filter(z => z.reverse), { empty: 'No reverse zone yet. They are created when you add a network with the reverse zone option.', actions: acts })}</div>`);
@@ -752,7 +754,7 @@ async function vZone(id) {
 async function vResolver() {
   const [cfg, fws] = await Promise.all([api('GET', '/dns-settings'), api('GET', '/forwarders')]);
   main(head('Resolver and forwarders', 'How BIND answers for names it is not authoritative for',
-    adm(`<button class="btn primary" data-act="edit-cfg">Edit resolver</button><button class="btn" data-act="add-fw">Add conditional forwarder</button>`) + `<a class="btn" href="#/dns-cache">DNS cache</a>`,
+    adm(`<button class="btn primary" data-act="edit-cfg">Edit resolver</button><button class="btn" data-act="add-fw">Add conditional forwarder</button>`) + `<a class="btn" href="#/dns-cache">DNS cache</a><a class="btn" href="#/dns-errors">DNS errors</a>`,
     `<a href="#/dns">DNS zones</a> / Resolver`) +
     `<div class="panel"><h2>Resolver</h2><div class="facts">
       <div><span>Recursion</span><b>${cfg.recursion ? 'On' : 'Off (authoritative only)'}</b></div>
@@ -804,6 +806,61 @@ const CACHE_VIEW = { range: '24h' };
 const RANGE_SECS = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800 };
 const bytes = v => v == null ? '-' : v >= 1073741824 ? (v / 1073741824).toFixed(1) + ' GB' : v >= 1048576 ? (v / 1048576).toFixed(1) + ' MB' : Math.round(v / 1024) + ' KB';
 const dur = t => t == null ? 'BIND default' : `${F(t)} s` + (t >= 60 ? ` (${t % 86400 === 0 ? t / 86400 + 'd' : t % 3600 === 0 ? t / 3600 + 'h' : t % 60 === 0 ? t / 60 + 'm' : Math.round(t / 60) + 'm'})` : '');
+/* ---------------- detail error DNS (SERVFAIL / REFUSED dari log BIND) */
+const DXE_VIEW = { range: '24h' };
+const DXE_REASON = {
+  timeout: 'The upstream server did not answer in time', 'connection refused': 'The upstream server refused the connection (port closed or host down)',
+  'upstream SERVFAIL': 'The upstream server itself answered SERVFAIL', 'upstream REFUSED': 'The upstream server refused to answer this resolver',
+  'lame delegation': 'The server named in the delegation is not authoritative for the zone', DNSSEC: 'DNSSEC validation failed',
+  unknown: 'BIND did not log the upstream cause', 'allow-query-cache': 'The client is not allowed to use this resolver', 'allow-recursion': 'The client is not allowed to use recursion',
+  'allow-query': 'The client is not allowed to query this zone'
+};
+const dxeReasons = rs => rs.map(([r, n]) => `<span class="tag dxe-r" title="${esc(DXE_REASON[r] || r)}">${esc(r)} <b>${F(n)}</b></span>`).join(' ');
+const dxeName = n => n === '.' ? '<span class="muted">(root)</span>' : esc(n);
+async function vDnsErrors(kind = 'servfail') {
+  const r = await api('GET', `/dns-errors?range=${DXE_VIEW.range}&kind=${kind}`);
+  const s = r.source, t = r.totals, sf = kind === 'servfail';
+  const note = !s.managed ? `Error logging is turned off (<span class="mono">bind_log_manage = false</span>). Add channel <span class="mono">diddy_errors</span> to your own BIND logging to fill this page.`
+    : s.conflict ? `named.conf already has its own <span class="mono">logging</span> block, and BIND allows only one, so Diddy did not add its logging. Add this to your block and reload BIND:<pre class="code">channel diddy_errors { file "${esc(s.log_file)}" versions 3 size 20m; severity debug 2; print-time yes; print-category yes; print-severity yes; };
+category query-errors { diddy_errors; };
+category lame-servers { diddy_errors; };
+category security { diddy_errors; default_syslog; };</pre>`
+    : !s.exists ? `BIND has not written <span class="mono">${esc(s.log_file)}</span> yet. <a href="#/deploy">Deploy</a> once so the logging block is active.` : '';
+  main(head('DNS errors', 'Which names fail, which upstream servers are to blame, and which clients are refused',
+    `<div class="seg">${Object.keys(RANGE_SECS).map(x => `<button class="${x === DXE_VIEW.range ? 'on' : ''}" data-act="dxe-range" data-r="${x}">${x}</button>`).join('')}</div>`,
+    `<a href="#/dns">DNS zones</a> / <a href="#/resolver">Resolver</a> / Errors`) +
+    `<div class="tabs board-tabs"><a href="#/dns-errors/servfail" class="${sf ? 'on' : ''}">SERVFAIL <span class="muted">${F(t.servfail)}</span></a><a href="#/dns-errors/refused" class="${sf ? '' : 'on'}">REFUSED <span class="muted">${F(t.refused)}</span></a></div>` +
+    (note ? `<div class="conflict dxe-note">${note}</div>` : '') +
+    `<div class="panel">${kpis(sf ? [
+      { label: `SERVFAIL (${r.range})`, value: F(t.servfail), sub: 'answers the resolver could not give' },
+      { label: 'Names affected', value: (r.names.length >= 50 ? '50+' : r.names.length) },
+      { label: 'Upstream failures', value: F(t.upstream), sub: 'timeouts and errors talking to other servers' },
+      { label: 'Clients affected', value: (r.clients.length >= 50 ? '50+' : r.clients.length) }] : [
+      { label: `REFUSED (${r.range})`, value: F(t.refused), sub: 'queries this server declined' },
+      { label: 'Clients refused', value: (r.clients.length >= 50 ? '50+' : r.clients.length) },
+      { label: 'Not in resolver ACL', value: F(r.clients.filter(c => c.allowed === false).length), sub: 'see Resolver > allowed networks' }])}
+      <div class="chart-host" id="dxe-chart"></div></div>` +
+    (sf ? `<div class="panel flush"><div class="dxe-h"><h2>Names that failed</h2></div>${table([
+        { k: 'name', label: 'Name', cls: 'mono', fmt: dxeName }, { k: 'count', label: 'SERVFAIL', fmt: v => F(v) },
+        { k: 'reasons', label: 'Why (from the upstream log)', fmt: dxeReasons }, { k: 'types', label: 'Types', fmt: v => esc(v.join(', ')) },
+        { k: 'clients', label: 'Clients' }, { k: 'last', label: 'Last seen', cls: 'mono' }], r.names, { empty: 'No SERVFAIL in this period.' })}</div>
+      <div class="panel flush"><div class="dxe-h"><h2>Upstream servers that failed</h2><p class="muted">Forwarders and authoritative servers BIND could not get a good answer from. Root servers appear here when this server cannot reach the internet.</p></div>${table([
+        { k: 'server', label: 'Server', cls: 'mono' }, { k: 'role', label: 'Role', fmt: v => v ? `<span class="tag on">${esc(v)}</span>` : '<span class="muted">authoritative / other</span>' },
+        { k: 'count', label: 'Failures', fmt: v => F(v) }, { k: 'reasons', label: 'What happened', fmt: dxeReasons },
+        { k: 'names', label: 'While resolving', cls: 'mono', fmt: v => v.map(dxeName).join(', ') }, { k: 'last', label: 'Last seen', cls: 'mono' }], r.servers, { empty: 'No upstream failures in this period.' })}</div>`
+     : '') +
+    `<div class="panel flush"><div class="dxe-h"><h2>${sf ? 'Clients that got SERVFAIL' : 'Clients refused'}</h2>${sf ? '' : '<p class="muted">Usually a client outside the networks allowed to use this resolver. Add its network in <a href="#/resolver">Resolver and forwarders</a> if it should be served.</p>'}</div>${table([
+      { k: 'client', label: 'Client', cls: 'mono' }, { k: 'count', label: sf ? 'SERVFAIL' : 'REFUSED', fmt: v => F(v) },
+      ...(sf ? [] : [{ k: 'allowed', label: 'Resolver ACL', fmt: v => v ? '<span class="tag on">allowed</span>' : '<span class="tag warn">not allowed</span>' }]),
+      { k: 'reasons', label: 'Why', fmt: dxeReasons }, { k: 'names', label: 'Names asked', cls: 'mono', fmt: v => v.map(dxeName).join(', ') }, { k: 'last', label: 'Last seen', cls: 'mono' }],
+      r.clients, { empty: sf ? 'No client got SERVFAIL in this period.' : 'No query was refused in this period.' })}</div>` +
+    (sf ? '' : `<div class="panel flush"><div class="dxe-h"><h2>Names refused</h2></div>${table([{ k: 'name', label: 'Name', cls: 'mono', fmt: dxeName }, { k: 'count', label: 'REFUSED', fmt: v => F(v) },
+      { k: 'reasons', label: 'Why', fmt: dxeReasons }, { k: 'clients', label: 'Clients' }, { k: 'last', label: 'Last seen', cls: 'mono' }], r.names, { empty: 'No query was refused in this period.' })}</div>`) +
+    `<p class="muted dxe-foot">Details come from the BIND log (<span class="mono">${esc(s.log_file)}</span>) and are kept as long as the dashboard statistics. NXDOMAIN is a normal answer (the name does not exist), and BIND does not log it per name.</p>`);
+  Charts.bars($('#dxe-chart'), { items: r.series.map(p => ({ label: new Date(p.t * 1000).toTimeString().slice(0, 5), v: p.v, title: new Date(p.t * 1000).toLocaleString() })) },
+    { unit: sf ? 'SERVFAIL' : 'REFUSED', color: cssv(sf ? '--danger' : '--s-unmanaged'), height: 160, empty: `No ${sf ? 'SERVFAIL' : 'REFUSED'} in the last ${r.range}` });
+  on('dxe-range', d => { DXE_VIEW.range = d.r; route(); });
+}
 async function vDnsCache() {
   const c = await api('GET', '/dns-cache?range=' + CACHE_VIEW.range);
   const s = c.stats, st = c.settings, hist = c.history;
@@ -1068,7 +1125,7 @@ async function vSearch(s) {
 }
 
 /* ---------------- shell */
-const ROUTES = [[/^#\/?(dashboard)?$/, vDashboard], [/^#\/dashboard\/(overview|dns|dhcp)$/, vDashboard], [/^#\/ipam$/, vIpam], [/^#\/ipam\/(\d+)$/, vNetwork], [/^#\/dns$/, vDns], [/^#\/dns\/(\d+)$/, vZone], [/^#\/resolver$/, vResolver], [/^#\/dns-cache$/, vDnsCache],
+const ROUTES = [[/^#\/?(dashboard)?$/, vDashboard], [/^#\/dashboard\/(overview|dns|dhcp)$/, vDashboard], [/^#\/ipam$/, vIpam], [/^#\/ipam\/(\d+)$/, vNetwork], [/^#\/dns$/, vDns], [/^#\/dns\/(\d+)$/, vZone], [/^#\/resolver$/, vResolver], [/^#\/dns-cache$/, vDnsCache], [/^#\/dns-errors(?:\/(servfail|refused))?$/, vDnsErrors],
   [/^#\/dhcp$/, vDhcp], [/^#\/hosts$/, vHosts], [/^#\/deploy$/, vDeploy], [/^#\/health$/, vHealth], [/^#\/system(?:\/(config|users|audit))?$/, vSystem], [/^#\/search\/(.+)$/, vSearch]];
 async function refreshMe() {
   ME = await api('GET', '/me');

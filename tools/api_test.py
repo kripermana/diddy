@@ -121,6 +121,8 @@ call("GET", "/forwarders")
 call("GET", "/deploy/preview")
 call("GET", "/drift")
 call("GET", "/services")
+call("GET", "/dns-errors?range=24h&kind=servfail")
+call("GET", "/dns-errors?range=1h&kind=refused")
 call("GET", "/users")
 for kind in ("networks", "hosts", "records", "leases", "audit"):
     call("GET", f"/export/{kind}.csv")

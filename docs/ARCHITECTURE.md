@@ -2,7 +2,7 @@
 
 *Your DDI Friend*
 
-(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.4.0.
+(c) 2026 kripermana, lisensi MIT. Dokumen ini untuk Diddy 2.5.0.
 
 Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4), dan dnsdist (upstream DoT/DoH) dari satu database MySQL atau SQLite. Database adalah sumber kebenaran; file config service selalu dihasilkan dari database, divalidasi, lalu baru ditulis.
 
@@ -36,6 +36,7 @@ Diddy adalah package Python `diddy/` yang mengelola BIND9 (DNS), ISC Kea (DHCPv4
 | `dns/ddns.py` | Record A/PTR dari lease, disisipkan ke blok dinamis zone file |
 | `dns/resolver.py` | Recursion, ACL, forwarder, conditional forwarder, config dnsdist |
 | `dns/zone_io.py` | Import (zone file BIND, CSV, JSON) dengan rencana/pratinjau dan penerapan dalam satu transaksi; export zona |
+| `dns/errlog.py` | Log error BIND (SERVFAIL, REFUSED, upstream gagal): blok logging, deteksi bentrok, baca bertahap, ringkasan ke `dns_events`, laporan |
 | `dns/cache.py` | Cache BIND: validasi dan render pengaturan cache, statistik dari statistics-channel, lookup (`dig +norecurse`), flush (`rndc`) |
 | `dns/routes.py` | Endpoint zona, record, resolver, forwarder, cache DNS, refresh DDNS |
 | `hosts.py` | Host object: DNS + PTR + reservasi DHCP dalam satu objek, import CSV |
@@ -57,6 +58,7 @@ Import hanya boleh mengarah ke lapisan yang sama atau di bawahnya. Aturan ini ya
 4  HTTP              ipam.routes  dhcp.routes  dns.routes  deploy.routes  hosts  users  system
 3  Logika domain     dhcp.leases -> dns.zones -> ipam.networks -> dhcp.kea / dns.resolver
                      dns.cache -> dns.resolver
+                     dns.errlog -> dns.resolver / metrics
                      dns.zone_io -> dns.ddns / dns.zones
                      deploy.drift -> dns.ddns -> deploy.pipeline
                      deploy.services -> dhcp.kea / dns.resolver

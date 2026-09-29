@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS forwarders(id INTEGER PRIMARY KEY, domain TEXT NOT NU
 CREATE TABLE IF NOT EXISTS deployed(path TEXT PRIMARY KEY, sha TEXT NOT NULL, content TEXT NOT NULL, ts TEXT);
 CREATE TABLE IF NOT EXISTS metrics(id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_metrics_kind_ts ON metrics(kind, ts);
+CREATE TABLE IF NOT EXISTS dns_events(id INTEGER PRIMARY KEY, bucket INTEGER NOT NULL, kind TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '', qtype TEXT NOT NULL DEFAULT '', server TEXT NOT NULL DEFAULT '',
+  client TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL DEFAULT 1);
+CREATE INDEX IF NOT EXISTS idx_dns_events_kind_bucket ON dns_events(kind, bucket);
 CREATE TABLE IF NOT EXISTS state(k TEXT PRIMARY KEY, v TEXT);
 """
 
@@ -80,6 +84,11 @@ SCHEMA_MYSQL = [
     " content LONGTEXT NOT NULL, ts VARCHAR(19))" + _T,
     "CREATE TABLE IF NOT EXISTS metrics(id BIGINT AUTO_INCREMENT PRIMARY KEY, ts BIGINT NOT NULL,"
     " kind VARCHAR(8) NOT NULL, data MEDIUMTEXT NOT NULL, INDEX idx_metrics_kind_ts(kind, ts))" + _T,
+    "CREATE TABLE IF NOT EXISTS dns_events(id BIGINT AUTO_INCREMENT PRIMARY KEY, bucket BIGINT NOT NULL,"
+    " kind VARCHAR(12) NOT NULL, name VARCHAR(255) NOT NULL DEFAULT '', qtype VARCHAR(12) NOT NULL DEFAULT '',"
+    " server VARCHAR(64) NOT NULL DEFAULT '', client VARCHAR(64) NOT NULL DEFAULT '',"
+    " reason VARCHAR(64) NOT NULL DEFAULT '', count INT NOT NULL DEFAULT 1,"
+    " INDEX idx_dns_events_kind_bucket(kind, bucket))" + _T,
     "CREATE TABLE IF NOT EXISTS state(k VARCHAR(300) PRIMARY KEY, v TEXT)" + _T,
 ]
 
@@ -142,7 +151,11 @@ def migrate_sqlite(path, force=False, src_prefix=""):
     for t in TABLES:
         cur.execute(f"DELETE FROM {T(t)}")
     for t in TABLES:
-        rows = src.execute(f"SELECT * FROM {src_prefix + t}").fetchall()
+        try:
+            rows = src.execute(f"SELECT * FROM {src_prefix + t}").fetchall()
+        except sqlite3.OperationalError:   # tabel dari versi Diddy yang lebih baru dari file sumber
+            print(f"  {t:<11} tidak ada di sumber, dilewati")
+            continue
         if rows:
             cols = rows[0].keys()
             cur.executemany(f"INSERT INTO {T(t)}({','.join(cols)}) VALUES({','.join(['%s'] * len(cols))})",

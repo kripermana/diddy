@@ -12,6 +12,7 @@ from .drift import record_file
 from ..dhcp.kea import kea_command, render_kea
 from ..dns.ddns import dynamic_records
 from ..dns.resolver import dns_settings, render_dnsdist, render_options
+from ..dns.errlog import deploy_log_file, ensure_log_dir
 from ..dns.zones import render_named_conf, render_zone
 
 
@@ -41,7 +42,8 @@ def build():
     rendered = [(z,) + render_zone(z, dynmap.get(z["id"])) for z in zs]
     cfg = dns_settings()
     dd = render_dnsdist(cfg) if cfg["upstream_mode"] == "encrypted" else None
-    return zs, rendered, render_named_conf(zs), json.dumps(render_kea(), indent=2) + "\n", render_options(), dd
+    named = render_named_conf(zs, deploy_log_file())
+    return zs, rendered, named, json.dumps(render_kea(), indent=2) + "\n", render_options(), dd
 
 
 def run_deploy():
@@ -115,6 +117,11 @@ def run_deploy():
                 os.remove(os.path.join(zdir, fn))
                 x("DELETE FROM deployed WHERE path=?", (os.path.join(zdir, fn),))
         ncp = os.path.join(C["bind_dir"], "named.conf.diddy")
+        if "channel diddy_errors" in named and not DRY:
+            ensure_log_dir()
+        elif C.getboolean("bind_log_manage") and state_get("errlog:conflict") == "1":
+            step("DNS error log", True, "named.conf already has a logging block: Diddy did not add its own. "
+                 "Add channel diddy_errors manually to use the DNS errors page (see INSTALL.md).")
         open(ncp, "w").write(named)
         record_file(ncp, named)
         optf = C["bind_options_file"]

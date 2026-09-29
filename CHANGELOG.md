@@ -2,6 +2,19 @@
 
 Semua perubahan penting Diddy dicatat di sini. Versi 1.x dirilis dengan nama LiteDDI. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan penomoran [Semantic Versioning](https://semver.org/lang/id/).
 
+## [2.5.0]
+### Ditambahkan
+- Halaman **DNS errors** (DNS > Resolver > DNS errors, atau klik SERVFAIL/REFUSED di widget *Response codes* dashboard):
+  - **SERVFAIL**: domain yang gagal beserta alasannya (timeout, connection refused, upstream SERVFAIL/REFUSED, lame delegation, DNSSEC), server upstream yang gagal dengan penanda forwarder atau conditional forwarder, dan klien yang terdampak.
+  - **REFUSED**: klien yang ditolak beserta nama yang ditanyakan dan apakah IP-nya masuk ACL resolver, lengkap dengan petunjuk menambahkan network-nya.
+  - Grafik kejadian per waktu dan rentang 1 jam, 6 jam, 24 jam, 7 hari.
+- Diddy menambahkan blok `logging` ke `named.conf.diddy` (channel `diddy_errors` ke `/var/log/named/diddy-errors.log`, kategori `query-errors`, `lame-servers`, dan `security`). Log dibaca bertahap tiap menit (rotasi BIND ditangani) dan diringkas per 5 menit ke tabel baru `dns_events`, disimpan selama `metrics_retention_days`. Direktori log dibuat otomatis milik user BIND.
+- Bila `named.conf` sudah punya blok `logging` sendiri (BIND hanya menerima satu), Diddy tidak menulis bloknya, deploy dan Health memberi peringatan, dan halaman DNS errors menampilkan channel yang perlu ditambahkan manual. Bila blok admin ditambahkan setelah blok Diddy ada, deploy berikutnya mencabut blok Diddy sehingga BIND valid kembali.
+- Config `bind_log_manage` dan `bind_log_file`. Endpoint `/dns-errors`, CLI `diddy dns-errors [--range=24h] [--kind=servfail|refused]`, item Health *DNS error log*.
+### Diperbaiki
+- `diddy migrate-sqlite` gagal bila file SQLite sumber berasal dari versi yang belum punya tabel terbaru; tabel yang tidak ada kini dilewati.
+- Grafik di luar dashboard (DNS cache, DNS errors) meluber ke samping bila jendela diperkecil setelah halaman dibuka.
+
 ## [2.4.0]
 ### Diubah
 - Workflow GitHub Actions dihapus; verifikasi dijalankan lokal (lihat `docs/DEVELOPMENT.md`).

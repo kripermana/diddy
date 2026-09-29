@@ -4,7 +4,7 @@ import re
 from ..config import PFX
 
 TABLES = ["users", "networks", "ranges", "zones", "records", "hosts", "discovered", "audit", "state",
-          "forwarders", "deployed", "metrics"]
+          "forwarders", "deployed", "metrics", "dns_events"]
 _TBL_RE = re.compile(r"\b(FROM|JOIN|INTO|UPDATE|EXISTS|REFERENCES|ON)\s+(" + "|".join(TABLES) + r")\b", re.I)
 
 

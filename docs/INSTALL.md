@@ -1,6 +1,6 @@
 # Diddy: Prasyarat, Instalasi, dan Troubleshooting
 
-Dokumen ini untuk Diddy 2.4.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
+Dokumen ini untuk Diddy 2.5.0 (sebelumnya LiteDDI) (edisi MySQL, DDNS, DNS forwarder, health view, dan tema). (c) 2026 kripermana, lisensi MIT. Semua perintah dijalankan sebagai root atau dengan `sudo`.
 
 ---
 
@@ -533,6 +533,20 @@ sudo diddy cache-flush                           # seluruh cache
 | Domain yang baru dibuat masih NXDOMAIN | Jawaban negatif masih tersimpan di cache. Flush nama itu, atau turunkan *Max negative cache TTL* |
 | Statistik cache tidak tersedia | Statistics-channel BIND belum aktif (Deploy sekali), atau recursion mati |
 | Lookup gagal `dig tidak ditemukan` | `sudo apt install bind9-dnsutils` |
+
+**Kenapa SERVFAIL atau REFUSED tinggi?** Buka **DNS > DNS errors** (atau `sudo diddy dns-errors --range=24h`, `--kind=refused`). Diddy membaca log error BIND di `/var/log/named/diddy-errors.log`.
+
+| Yang terlihat | Arti dan tindakan |
+|---|---|
+| Banyak SERVFAIL dengan alasan `timeout` ke satu forwarder | Forwarder lambat atau tidak terjangkau. Cek jalur ke IP itu, ganti atau tambah forwarder di *Resolver* |
+| `connection refused` ke forwarder | Port 53 di forwarder tertutup atau servernya mati |
+| `upstream SERVFAIL` / `upstream REFUSED` | Server upstream sendiri gagal atau menolak resolver ini (mis. forwarder yang membatasi IP sumber) |
+| Root server (`(root)`) di daftar upstream | Server Diddy tidak bisa menjangkau internet langsung: pakai forwarder, atau buka UDP/TCP 53 keluar |
+| SERVFAIL hanya untuk satu domain, alasan `DNSSEC` | Tanda tangan DNSSEC domain itu rusak; biasanya di sisi pemilik domain |
+| REFUSED dengan status *not allowed* | IP klien tidak masuk ACL resolver. Tambahkan network-nya di *Resolver > Allowed to use this resolver*, atau aktifkan network IPAM |
+| Halaman kosong dengan pesan `logging` sudah ada | `named.conf` punya blok `logging` sendiri. Tambahkan channel `diddy_errors` ke blok itu (teksnya ditampilkan di halaman), lalu `rndc reload` |
+
+NXDOMAIN tidak dirinci per nama: itu jawaban normal (nama memang tidak ada) dan BIND distro tidak mencatatnya per query.
 
 ### 3.7 Deploy sukses, tapi DNS tidak menjawab
 

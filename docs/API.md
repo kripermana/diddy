@@ -1,6 +1,6 @@
 # Diddy REST API
 
-Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.4.0.
+Base URL `http://<server>:8080/api/v1`. Semua body berformat JSON. Dokumen ini untuk Diddy 2.5.0.
 
 ## Autentikasi
 
@@ -69,6 +69,7 @@ Semua perubahan data hanya tersimpan di database dan menyalakan tanda *pending*.
 | GET, PUT | `/dns-settings` | Setting resolver, forwarder, upstream terenkripsi |
 | GET, POST | `/forwarders` | Daftar / buat conditional forwarder |
 | PUT, DELETE | `/forwarders/{id}` | Ubah / hapus conditional forwarder |
+| GET | `/dns-errors?range=1h\|6h\|24h\|7d&kind=servfail\|refused` | Detail error DNS dari log BIND: `totals` (servfail, refused, upstream), `series`, `names` (jumlah, alasan, tipe, klien), `servers` (upstream yang gagal, `role` forwarder/conditional forwarder), `clients` (untuk REFUSED ada `allowed` = masuk ACL resolver), `source` (status log) |
 | GET | `/dns-cache?range=1h\|6h\|24h\|7d` | Cache DNS BIND: statistik saat ini, hit ratio historis, pengaturan cache |
 | PUT | `/dns-cache/settings` | Ubah `max_cache_size` (`512M`, `2G`, `50%`, `unlimited`, kosong = default), `max_cache_ttl`, `max_ncache_ttl` (detik, `null` = default). Berlaku setelah deploy |
 | POST | `/dns-cache/flush` | Hapus cache sekarang: body `{}` = semua, `{"name": "example.com"}` = satu nama, tambah `"tree": true` untuk nama beserta turunannya |

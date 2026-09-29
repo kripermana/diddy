@@ -21,6 +21,7 @@ from .core.util import clean, human_time, now, run, svc_state
 from .db.connection import mysql_connect, q, state_get
 from .deploy.drift import drift_report
 from .deploy.services import services_status
+from .dns.errlog import source_status as errlog_status
 from .dhcp.leases import read_leases
 from .dns.resolver import dns_settings, proxy_target
 from .ipam.networks import all_nets, usage_sets, utilization
@@ -120,6 +121,15 @@ def api_health():
         else:
             add("Dashboard statistics", "warn", f"Statistik BIND tidak terbaca dari {C['bind_stats_url']}: "
                 f"{st['dns_error']}. Deploy sekali agar statistics-channel aktif.")
+    el = errlog_status()
+    if el["managed"]:
+        if el["conflict"]:
+            add("DNS error log", "warn", "named.conf already has its own logging block; add channel diddy_errors "
+                "manually to see SERVFAIL/REFUSED details")
+        elif not el["exists"]:
+            add("DNS error log", "unknown", f"{el['log_file']} not written yet. Deploy once to enable it.")
+        else:
+            add("DNS error log", "ok" if not el["error"] else "warn", el["error"] or f"reading {el['log_file']}")
     items_drift = drift_report()
     nbad = sum(1 for i in items_drift if i["state"] in ("missing", "modified"))
     if items_drift:

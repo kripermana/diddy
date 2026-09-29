@@ -119,6 +119,16 @@ Jalur gagal (wajib):
 
 Catat kedua jalur beserta buktinya, termasuk versi awal mana yang diuji dan mana yang belum.
 
+## Log error BIND (halaman DNS errors)
+`diddy/dns/errlog.py` membaca log yang ditulis BIND lewat blok `logging` di `named.conf.diddy`. Pola barisnya diambil
+dari BIND 9.18 (Ubuntu 24.04) dan disimpan sebagai fixture di `tests/fixtures/bind-errors.log`:
+- `query-errors`: `query failed (failure) for NAME/IN/TYPE` (BIND 9.18 menulis `failure`, bukan `SERVFAIL`).
+  Baris `fetch completed` (debug 2) tidak muncul, jadi alasan dan server diambil dari `lame-servers`.
+- `lame-servers`: `<alasan> resolving 'NAME/TYPE/IN': IP#port`.
+- `security`: `query (cache) 'NAME/TYPE/IN' denied (allow-query-cache did not match)`.
+Saat BIND versi baru dipakai, picu SERVFAIL (forwarder ke IP mati) dan REFUSED (klien di luar ACL) di lab,
+bandingkan barisnya dengan fixture, dan perbarui regex serta fixture bila berbeda.
+
 ## Uji lab DHCP dan DDNS
 `tools/dhcp_sim.py` mensimulasikan banyak klien DHCP (MAC dan hostname acak) dari mesin yang satu L2 dengan Kea, lalu
 mengecek hasil DDNS dengan `dig` dan API Diddy. Contoh config: `python3 tools/dhcp_sim.py --example-config`.
